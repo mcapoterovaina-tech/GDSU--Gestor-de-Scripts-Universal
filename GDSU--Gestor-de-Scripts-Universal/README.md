@@ -1,0 +1,1581 @@
+Resumen de Funcionalidades: Gestor de Scripts Universal
+
+1. Introducción: Tu Centro de Mando para la Automatización
+
+El "Gestor de Scripts Universal" es una herramienta diseñada para ser el punto de control central de la automatización en entornos de TI. Su propósito principal es simplificar y centralizar tareas complejas de administración de sistemas a través de una interfaz gráfica amigable y fácil de usar. Está especialmente pensado para administradores que se inician en la automatización y buscan una forma segura, eficiente y visual de ejecutar operaciones repetitivas sin necesidad de escribir comandos complejos en la consola.
+
+A través de su interfaz, la herramienta organiza y ejecuta un potente catálogo de scripts, convirtiendo operaciones avanzadas en simples clics de ratón.
+
+2. El Corazón del Sistema: Una Interfaz Intuitiva
+
+La efectividad del gestor reside en su diseño claro y funcional, que se divide en tres componentes principales para ofrecer una experiencia de usuario fluida y controlada.
+
+* Panel de Scripts Disponibles: Es el catálogo central donde se visualizan todas las herramientas de automatización. Los scripts están organizados lógicamente en carpetas por categorías (gestión de software, seguridad, redes, etc.), lo que permite encontrar y seleccionar rápidamente la tarea adecuada para cada necesidad.
+* Registro de Actividad (Log): Esta ventana es tu "torre de control". Muestra en tiempo real cada acción que realiza la herramienta, desde el inicio de un script hasta su finalización, incluyendo mensajes de éxito, advertencias o errores. Este registro detallado es fundamental para monitorear la ejecución y diagnosticar cualquier problema al instante.
+* Botonera de Acciones: Contiene los controles esenciales para operar el sistema. Los botones clave como Ejecutar seleccionados, Refrescar y Cerrar permiten una interacción directa y eficiente. Una de sus características más potentes es la capacidad de seleccionar múltiples scripts, incluso de diferentes categorías, y ejecutarlos simultáneamente en paralelo, optimizando al máximo el tiempo de trabajo.
+
+Estos componentes trabajan en conjunto para proporcionar acceso a un completo conjunto de capacidades de automatización, que se detallan a continuación.
+
+3. Catálogo de Capacidades de Automatización
+
+El Gestor de Scripts Universal viene equipado con un robusto conjunto de herramientas listas para usar. A continuación, se detallan las funcionalidades actualmente disponibles, agrupadas por su área de función para una mejor comprensión.
+
+3.1. Gestión de Software y Sistema Operativo
+
+Estas herramientas se enfocan en mantener el software y el sistema operativo actualizados, seguros y optimizados.
+
+* Instalación Silenciosa de Aplicaciones Automatiza la instalación de software (MSI/EXE) sin requerir ninguna intervención del usuario. Su principal ventaja es el ahorro masivo de tiempo en despliegues y la garantía de que todas las instalaciones se realizan de manera consistente y estandarizada, validando la correcta inscripción del software en el registro tras la instalación.
+* Actualización Segura de Software Gestiona el proceso de actualización de aplicaciones de forma automatizada, creando primero un backup de la versión actual. Su característica más importante es la capacidad de rollback automático: si una actualización falla por cualquier motivo, el script revierte la aplicación a su estado anterior usando el backup, evitando dejar un programa roto o inestable.
+* Inventario de Software Genera una lista completa y detallada de todas las aplicaciones instaladas en el sistema. Clasifica el software según su origen (instalador MSI, Microsoft Store, aplicación portable), extrayendo metadatos directamente de los ejecutables para los portables, lo que facilita las auditorías y la gestión de licencias.
+* Inventario de Hardware Recopila información exhaustiva sobre los componentes físicos del sistema, incluyendo CPU, RAM, discos, tarjetas gráficas, detalles de Firmware/BIOS y de la placa base (fabricante, producto y serial). El informe resultante se puede exportar a formatos estructurados como CSV o JSON para su análisis o integración con sistemas de inventariado.
+* Endurecimiento (Hardening) de Windows Mejora la seguridad del sistema operativo deshabilitando protocolos obsoletos y vulnerables como SMBv1 y servicios inseguros como SNMP, Telnet y RemoteRegistry. Ofrece un modo de simulación (DryRun) para auditar los cambios antes de aplicarlos y genera un snapshot del estado previo para permitir un rollback controlado.
+* Optimización de Arranque Analiza los programas que se inician con el sistema y mide su impacto real en el rendimiento, capturando su consumo de CPU y RAM durante un período de muestreo objetivo. Esto permite identificar y deshabilitar de forma segura las aplicaciones no críticas que realmente ralentizan el arranque.
+* Limpieza de Cachés Libera espacio en disco eliminando archivos temporales y logs antiguos según políticas configurables de retención por antigüedad y tamaño mínimo. Respeta una lista de exclusión para no afectar archivos críticos, garantizando una limpieza segura y efectiva.
+
+Una vez que el sistema operativo y el software están optimizados y bajo control, el siguiente paso lógico es reforzar su seguridad y gestionar el acceso de los usuarios.
+
+3.2. Seguridad y Administración de Usuarios
+
+Este conjunto de herramientas simplifica la gestión de accesos y la configuración de las defensas del sistema.
+
+* Creación de Usuarios Locales Agiliza la creación de nuevas cuentas de usuario, asegurando el uso de contraseñas robustas y la asignación a grupos predefinidos. Utiliza cmdlets modernos, pero cuenta con un fallback al comando net user para garantizar la compatibilidad con sistemas antiguos, demostrando un diseño robusto.
+* Gestión de Políticas de Firewall Facilita la configuración del firewall de forma idempotente, lo que previene la acumulación de reglas duplicadas, un problema común que degrada el rendimiento. Antes y después de cada cambio, genera snapshots en formato JSON del estado de las reglas, creando una pista de auditoría completa e inequívoca.
+* Gestión de Procesos Identifica procesos problemáticos basándose en criterios objetivos y medibles: aquellos que no responden a la interfaz gráfica, los que muestran cero actividad de CPU durante un período de muestreo (ZeroCPU), o los que han excedido un tiempo máximo de ejecución predefinido (ExceededRuntime). Respeta una lista blanca de procesos críticos para evitar afectar al sistema.
+
+Una vez que el sistema está asegurado y el acceso controlado, la prioridad se desplaza hacia la protección de los datos y la garantía de la continuidad del negocio.
+
+3.3. Gestión de Datos y Continuidad del Negocio
+
+Estas funcionalidades son cruciales para proteger la información y asegurar una rápida recuperación ante cualquier imprevisto.
+
+* Backup Incremental Crea copias de seguridad versionadas que solo guardan los cambios. Cada versión es un snapshot autocontenido que incluye un manifiesto (manifest.json) y un catálogo de archivos (catalog.csv), proporcionando un inventario detallado y legible por máquina para auditorías y restauraciones precisas.
+* Restauración Rápida Permite restaurar archivos o perfiles desde una versión de backup específica, utilizando el catálogo para una selección precisa. Incluye una verificación de integridad mediante checksums para asegurar que los datos recuperados son una copia fiel y no están corruptos.
+* Sincronización de Carpetas Mantiene dos carpetas idénticas utilizando la potencia de Robocopy en modo Espejo (Mirror), que no solo copia archivos nuevos, sino que también elimina del destino aquellos que ya no existen en el origen. Verifica la integridad de los archivos copiados mediante checksums para garantizar una réplica perfecta.
+* Rotación de Logs Automatiza el mantenimiento de archivos de registro, comprimiendo los antiguos y purgando los más viejos según políticas de retención. Incluye un modo de simulación (DryRun) para validar las acciones antes de ejecutarlas, evitando la eliminación accidental de datos.
+
+La gestión de datos a menudo depende de los servicios de red, que también pueden ser administrados con el gestor.
+
+3.4. Servicios y Conectividad de Red
+
+Estas herramientas aseguran que los servicios esenciales del sistema y las conexiones de red funcionen correctamente.
+
+* Gestión de Servicios de Windows Ofrece un control preciso para iniciar, detener o reiniciar cualquier servicio del sistema. Después de cada acción, verifica que el servicio haya alcanzado el estado esperado (por ejemplo, "Running" o "Stopped"), garantizando que la operación se completó con éxito.
+* Mapeo de Unidades de Red Automatiza la conexión de unidades de red, permitiendo el uso de credenciales seguras (PSCredential) que pueden almacenarse en el Gestor de Credenciales de Windows para reconexiones automáticas. Garantiza la persistencia de las conexiones entre sesiones.
+
+Además de gestionar los servicios, es fundamental poder diagnosticar su rendimiento en tiempo real.
+
+3.5. Monitoreo y Diagnóstico
+
+Esta capacidad proporciona visibilidad sobre el estado del sistema para anticipar y resolver problemas de rendimiento.
+
+* Monitor de Rendimiento Captura métricas clave (CPU, RAM, disco, red) en tiempo real y genera alertas solo si los umbrales se superan durante un número configurable de muestras consecutivas. Esta lógica ayuda a filtrar picos momentáneos y a notificar únicamente sobre problemas de rendimiento sostenidos.
+
+Este conjunto de herramientas demuestra el potencial actual del proyecto, que está en continua expansión.
+
+4. Un Proyecto Vivo y de Código Abierto
+
+El "Gestor de Scripts Universal" es un proyecto de código libre, construido sobre una filosofía de transparencia y colaboración. Actualmente, cuenta con 17 herramientas funcionales y validadas, y el objetivo es expandir su catálogo con 83 herramientas adicionales que ya están en desarrollo, para un total de 100. Al ser de código abierto, cualquier persona puede revisar el código fuente, adaptarlo a sus necesidades específicas y contribuir a su mejora, asegurando que la herramienta evolucione junto a las necesidades de la comunidad.
+
+5. Conclusión: Simplifica tu Administración
+
+El "Gestor de Scripts Universal" es un aliado estratégico para cualquier administrador de sistemas, especialmente para aquellos que dan sus primeros pasos en la automatización. Sus beneficios clave se pueden resumir en tres puntos fundamentales:
+
+* Centralización: Reúne docenas de herramientas dispersas en una única interfaz cohesiva, eliminando la necesidad de buscar y recordar comandos complejos.
+* Reducción de errores: Al automatizar tareas con lógica robusta, validaciones y auditorías, se minimiza el riesgo de errores humanos, garantizando operaciones seguras y consistentes.
+* Ahorro de tiempo: Libera a los administradores de tareas repetitivas y manuales, permitiéndoles enfocarse en proyectos de mayor valor estratégico.
+
+En definitiva, esta herramienta no solo simplifica el trabajo diario, sino que también potencia la eficacia y la confianza del administrador para gestionar entornos de TI de manera profesional y segura.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. **Instalación silenciosa de apps:** Orquestar MSI/EXE con parámetros, logs y validación post-instalación.
+
+## 🔎 ¿Qué hace el script?
+
+1. **Recibe parámetros**  
+   - `InstallerPath`: ruta al instalador (MSI o EXE).  
+   - `AppName`: nombre de la aplicación para validar instalación.  
+   - `LogPath`: carpeta donde guardar logs (por defecto `C:\Logs`).  
+
+2. **Crea carpeta de logs** si no existe.  
+   Ejemplo: `C:\Logs\MiApp_20251017_1059.log`.
+
+3. **Detecta el tipo de instalador**  
+   - Si es `.msi` → usa `msiexec.exe` con `/qn` (silencioso) y `/L*v` (log detallado).  
+   - Si es `.exe` → aplica parámetros genéricos `/quiet /norestart /log`. *(puedes personalizar según el instalador: InnoSetup, NSIS, InstallShield, etc.)*  
+
+4. **Ejecuta la instalación** en modo silencioso y espera a que termine.  
+
+5. **Valida la instalación**  
+   - Busca en el registro de Windows si existe un programa cuyo `DisplayName` contenga el nombre que pasaste en `$AppName`.  
+   - Si lo encuentra → ✅ Instalación correcta.  
+   - Si no → ⚠ Instalación ejecutada pero no detectada.  
+
+6. **Manejo de errores**  
+   - Si el instalador devuelve un código distinto de 0 → ❌ error, revisa el log.  
+
+---
+
+## ⚙️ Cómo usarlo en tu Gestor de Scripts Universal
+
+Tú ya tienes un **UI modular con iconos y ejecución paralela**. Este script encaja como **módulo de instalación silenciosa**. Te doy un flujo de integración:
+
+1. **En tu UI** (WinForms/WPF):
+   - Agrega un botón o menú: *“Instalar aplicación”*.  
+   - Permite al usuario seleccionar el instalador (`OpenFileDialog`).  
+   - Campo de texto para el nombre de la app (`AppName`).  
+   - Opción para elegir carpeta de logs.  
+
+2. **Llamada al script**  
+   Desde tu gestor, ejecuta algo así:
+
+   ```powershell
+   powershell.exe -ExecutionPolicy Bypass -File ".\InstaladorSilencioso.ps1" `
+       -InstallerPath "C:\Installers\MiApp.msi" `
+       -AppName "MiApp" `
+       -LogPath "C:\Logs"
+   ```
+
+   *(Si tu gestor ya maneja jobs en paralelo, puedes lanzar varias instalaciones a la vez con parámetros distintos.)*
+
+3. **Captura de salida**  
+   - Muestra en tu UI el estado: *“Instalando…”*, *“Validando…”*, *“Completado”*.  
+   - Incluso puedes leer el log en tiempo real y mostrarlo en un textbox.  
+
+4. **Extensión futura**  
+   - Añadir soporte para **listas de instaladores** (ejecutar varios en secuencia o paralelo).  
+   - Integrar **iconos dinámicos**: verde si instalado, rojo si falló.  
+   - Guardar un **historial de instalaciones** en tu gestor.  
+
+
+2. **Actualización de software:** Verificar versiones, descargar releases y aplicar actualizaciones con rollback.
+
+## 🔎 ¿Qué hace el script?
+
+1. **Verifica la versión instalada**  
+   - Toma la ruta del ejecutable actual (`CurrentExePath`) y lee su `ProductVersion`.  
+   - Esto sirve para comparar antes y después de la actualización.
+
+2. **Descarga la nueva versión**  
+   - Usa la URL que le pasas (`DownloadUrl`) y guarda el instalador en una carpeta temporal (`C:\Temp` por defecto).  
+
+3. **Genera un backup (rollback)**  
+   - Copia la carpeta donde está el ejecutable actual a `C:\Backup`.  
+   - Si la actualización falla, restaura desde ahí.
+
+4. **Ejecuta la instalación silenciosa**  
+   - Si es `.msi` → usa `msiexec.exe /qn /norestart /L*v`.  
+   - Si es `.exe` → usa `/quiet /norestart /log`.  
+   - Todo queda registrado en un log con timestamp en `C:\Logs`.
+
+5. **Valida la actualización**  
+   - Vuelve a leer la versión del ejecutable.  
+   - Si cambió → ✅ actualización exitosa.  
+   - Si no cambió o hubo error → ⚠ inicia rollback.
+
+6. **Rollback automático**  
+   - Si el instalador devuelve error, elimina la carpeta nueva y restaura la copia de seguridad.  
+   - Así nunca te quedas con la app rota.
+
+---
+
+## ⚙️ Cómo funciona paso a paso
+
+- **Entrada**: parámetros (`AppName`, `CurrentExePath`, `DownloadUrl`, `InstallerType`).  
+- **Proceso**: descarga → backup → instalación → validación.  
+- **Salida**:  
+  - Log detallado en `C:\Logs`.  
+  - Mensajes en consola indicando éxito, advertencia o error.  
+  - Si falla, rollback automático.
+
+---
+
+## 🖥️ Cómo usarlo en tu Gestor de Scripts Universal
+
+Tú ya tienes un **UI modular con iconos, ejecución paralela y logs**. Este script encaja como **módulo de actualización**. Así lo integras:
+
+1. **En tu UI**  
+   - Agrega un formulario con campos:  
+     - Nombre de la app (`AppName`)  
+     - Ruta del ejecutable actual (`CurrentExePath`)  
+     - URL de descarga (`DownloadUrl`)  
+     - Tipo de instalador (`msi` o `exe`)  
+   - Botón: *“Actualizar”*.
+
+2. **Ejecución desde tu gestor**  
+   - Cuando el usuario pulse *Actualizar*, tu gestor lanza:  
+
+     ```powershell
+     powershell.exe -ExecutionPolicy Bypass -File ".\Update-Software.ps1" `
+         -AppName "MiApp" `
+         -CurrentExePath "C:\Program Files\MiApp\MiApp.exe" `
+         -DownloadUrl "https://servidor.com/releases/MiApp_v2.0.msi" `
+         -InstallerType "msi"
+     ```
+
+3. **Captura de salida**  
+   - Tu gestor puede leer la salida estándar y mostrar:  
+     - Barra de progreso (*Descargando… Instalando… Validando…*)  
+     - Icono verde si éxito, rojo si rollback.  
+     - Botón para abrir el log generado.
+
+4. **Extensión futura**  
+   - Leer un **JSON/CSV con varias apps** y actualizarlas en paralelo.  
+   - Mostrar un **dashboard** con estado de cada app.  
+   - Integrar **notificaciones toast** al terminar cada actualización.  
+
+---
+
+👉 En resumen: este `.ps1` convierte tu Gestor en un **actualizador universal con rollback seguro**.  
+Nunca más te quedarías con una app dañada tras un update fallido, porque siempre hay copia de seguridad lista para restaurar.
+
+3. **Gestión de servicios:** Iniciar/detener/reiniciar servicios con verificación de estado y alertas.
+ 
+
+## 🔎 Explicación de cómo funciona el `Manage-Service.ps1`
+
+1. **Parámetros de entrada**  
+   - `ServiceName`: el nombre del servicio (ejemplo: `"Spooler"` para la cola de impresión).  
+   - `Action`: la acción a realizar (`Start`, `Stop` o `Restart`).  
+   - `LogPath`: carpeta donde se guardarán los logs (por defecto `C:\Logs`).  
+
+2. **Preparación**  
+   - Si la carpeta de logs no existe, la crea.  
+   - Genera un archivo de log con timestamp único.  
+
+3. **Función `Write-Log`**  
+   - Escribe mensajes en el log y en la consola.  
+   - Usa colores para diferenciar niveles:  
+     - Verde → información/éxito  
+     - Amarillo → advertencia  
+     - Rojo → error  
+
+4. **Detección del servicio**  
+   - Usa `Get-Service` para verificar que el servicio existe.  
+   - Muestra el estado actual (Running, Stopped, etc.).  
+
+5. **Ejecución de la acción**  
+   - Si pediste `Start` → arranca el servicio si no estaba corriendo.  
+   - Si pediste `Stop` → lo detiene si estaba activo.  
+   - Si pediste `Restart` → lo reinicia forzadamente.  
+   - Después de la acción espera unos segundos (`Start-Sleep`) para que el estado se actualice.  
+
+6. **Verificación del estado final**  
+   - Vuelve a consultar el estado del servicio.  
+   - Si coincide con lo esperado (ejemplo: pediste `Start` y quedó en `Running`) → ✅ éxito.  
+   - Si no coincide → ❌ error, lo registra en el log y lo muestra en rojo.  
+
+7. **Manejo de errores**  
+   - Si el servicio no existe o ocurre un fallo, captura la excepción y la escribe en el log.  
+
+---
+
+## 🖥️ Cómo usarlo en tu Gestor de Scripts Universal
+
+- **UI**:  
+  - Campo de texto para el nombre del servicio.  
+  - Dropdown con las acciones (`Iniciar`, `Detener`, `Reiniciar`).  
+  - Botón *Ejecutar*.  
+
+- **Ejecución**:  
+  Tu gestor puede lanzar algo como:  
+
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Manage-Service.ps1" `
+      -ServiceName "Spooler" `
+      -Action "Restart" `
+      -LogPath "C:\Logs"
+  ```
+
+- **Integración visual**:  
+  - Mostrar en tu UI el estado final del servicio.  
+  - Usar íconos dinámicos: 🟢 si está corriendo, 🔴 si está detenido, ⚠ si hubo error.  
+  - Botón para abrir el log generado.  
+
+---
+
+✅ En resumen: este `.ps1` es **funcional y estable**. Te da control sobre cualquier servicio de Windows con logs y verificación de estado.  
+Lo puedes usar tal cual o integrarlo como **módulo de administración de servicios** dentro de tu Gestor.  
+
+
+4. **Creación de usuarios locales:** Alta, contraseñas seguras y pertenencia a grupos predefinidos.
+
+## Qué hace y por qué está bien pensado
+
+- **Evita duplicados:** si el usuario existe, no lo recrea y lo reporta.
+- **Contraseña robusta por defecto:** genera al menos 12–16 caracteres mezclando minúsculas, mayúsculas, dígitos y símbolos.
+- **Grupos predefinidos:** añade el usuario a los grupos que indiques y valida pertenencia.
+- **Políticas útiles:** cambio obligatorio de contraseña, deshabilitar para staging, registro de expiración.
+- **Logs claros:** cada paso queda en un archivo con timestamp y niveles (INFO/WARN/ERROR).
+- **Compatibilidad:** usa cmdlets modernos y, si fallan, intenta fallback con “net user” para entornos antiguos.
+
+---
+
+## Cómo usarlo con tu Gestor de Scripts Universal
+
+- **UI:**
+  - Campos: Usuario, Nombre completo, Descripción, Lista de grupos (multi-select).
+  - Opciones: Forzar cambio de contraseña, Deshabilitar usuario, Longitud de contraseña.
+  - Toggle: “Proporcionar contraseña” o “Generar automáticamente”.
+
+- **Ejecución desde tu gestor:**
+  - Generación automática:
+    ```powershell
+    powershell.exe -ExecutionPolicy Bypass -File ".\Create-LocalUser.ps1" `
+        -UserName "deployuser" `
+        -FullName "Usuario de despliegue" `
+        -Description "Cuenta técnica para despliegues" `
+        -Groups @("Administrators","Remote Desktop Users") `
+        -PasswordLength 18 `
+        -ForceChangeAtNextLogon `
+        -LogPath "C:\Logs"
+    ```
+  - Proporcionando contraseña (ej. tomada de tu vault o ingreso manual):
+    ```powershell
+    $secure = Read-Host "Contraseña" -AsSecureString
+    powershell.exe -ExecutionPolicy Bypass -File ".\Create-LocalUser.ps1" `
+        -UserName "svc_app" `
+        -FullName "Servicio de Aplicación" `
+        -Groups @("Users") `
+        -SecurePassword $secure `
+        -DisableUser `
+        -LogPath "C:\Logs"
+    ```
+
+- **Integración visual:**
+  - Muestra el log en tiempo real (textbox).
+  - Iconos: verde si creado y en grupos, amarillo si algún grupo faltó, rojo si error.
+  - Historial: guarda en tu auditoría interna los detalles del usuario creado y pertenencia final.
+
+---
+
+## Mejores prácticas que puedes añadir
+
+- **Almacenamiento seguro:** si guardas contraseñas, usa DPAPI/Credential Manager y evita imprimirlas.
+- **Plantillas de roles:** define presets de grupos (ej. “Operador”, “Servicio”, “RDP”) para selección rápida.
+- **Paralelismo controlado:** creación de múltiples usuarios en cola con límites de concurrencia.
+- **Validaciones de nombre:** normaliza caracteres, evita espacios o acentos si tu política lo requiere.
+
+
+5. **Políticas de firewall:** Habilitar reglas por perfil y puertos con auditoría de cambios.
+
+### Políticas de firewall con auditoría de cambios
+
+Esto está pensado para ser seguro, reversible y claro. El módulo habilita reglas por perfiles (Domain/Private/Public), abre/cierra puertos TCP/UDP, aplica etiquetas coherentes, y deja una auditoría con diff de estado antes y después.
+
+---
+
+## Script base: Set-FirewallPolicy.ps1
+---
+
+### Qué hace y por qué es sólido
+
+- **Acción explícita:** abre o cierra puertos con `Mode` controlado.
+- **Perfiles controlados:** aplica en Domain/Private/Public según definas, evitando cambios globales descontrolados.
+- **Idempotencia:** usa nombres de regla calculados (`RulePrefix-AppName-Protocol-Port`) para actualizar o recrear si la configuración no coincide.
+- **Auditoría completa:** snapshot antes/después en JSON y diff textual; “actions.log” registra todo con niveles INFO/WARN/ERROR.
+- **Seguridad operativa:** direcciona tráfico inbound solamente, y deja descripción con marca de auditoría para rastreabilidad.
+
+---
+
+### Cómo usarlo con tu Gestor de Scripts Universal
+
+- **UI:**
+  - **Acción:** Open/Close.
+  - **Puertos:** entrada múltiple (ej. 80, 443, 3389).
+  - **Protocolo:** TCP/UDP.
+  - **Perfiles:** checkboxes Domain/Private/Public.
+  - **Nombre lógico:** AppName (para etiquetar).
+  - **Prefijo de regla:** RulePrefix (por ejemplo, “GSU”).
+  - **Carpeta de logs:** opcional.
+
+- **Ejecución desde tu gestor:**
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Set-FirewallPolicy.ps1" `
+      -Mode Open `
+      -Ports 80,443 `
+      -Protocol TCP `
+      -Profiles @("Private","Public") `
+      -RulePrefix "GSU" `
+      -AppName "WebService" `
+      -LogPath "C:\Logs"
+  ```
+
+- **Integración visual:**
+  - **Estado:** muestra “actions.log” en tiempo real y un sumario del diff.
+  - **Iconos:** verde si reglas creadas/actualizadas; amarillo si hubo recreación; rojo si errores.
+  - **Auditoría:** botón para abrir carpeta de auditoría del timestamp.
+
+---
+
+### Extensiones recomendadas
+
+- **Outbound opcional:** agregar flag para gestionar tráfico saliente si tu política lo requiere.
+- **Scopes por programa o servicio:** permitir reglas por `Program` o `Service` con filtros Application/Service para mayor precisión.
+- **Plantillas de puertos por rol:** presets tipo “Web”, “DB”, “RDP”, “SSH” con listas predefinidas.
+- **Revert:** comando que lee el `AuditFolder` y revierte únicamente las reglas `RulePrefix-*` creadas en esa sesión.
+
+
+6. **Inventario de hardware:** Exportar CPU, RAM, discos, GPU y firmware a CSV/JSON.
+  ### Inventario de hardware con exportación a CSV y JSON
+---
+
+## Script base: Inventory-Hardware.ps1
+
+---
+
+### Qué captura y por qué es confiable
+
+- **CPU:** nombre, fabricante, núcleos, hilos, velocidad, caches, ID.  
+- **RAM:** por módulo, capacidad y velocidad normalizadas a GB/MHz.  
+- **Discos:** modelo, interfaz, tipo de medio, serial, tamaño en GB, firmware.  
+- **GPU:** nombre, versión de driver, vendor, VRAM en GB, procesador de video.  
+- **Firmware/placa:** BIOS fabricante/versión/fecha, board fabricante/producto/serial.  
+- **Sistema:** fabricante/modelo, RAM total, versión del sistema operativo.
+
+---
+
+### Cómo usarlo en tu Gestor de Scripts Universal
+
+- **UI:**
+  - **Etiqueta:** Tag para auditoría (ej. “GSU” o nombre del cliente).  
+  - **Carpeta de salida:** selector para `$OutputPath`.  
+  - **Opción:** toggle para `$IncludePerDeviceCSV` si quieres CSVs por dispositivo.  
+
+- **Ejecución desde tu gestor:**
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Inventory-Hardware.ps1" `
+      -OutputPath "D:\Inventarios\PC-001" `
+      -Tag "GSU-PC-001" `
+      -LogPath "D:\Inventarios\Logs"
+  ```
+
+- **Integración visual:**
+  - **Resumen rápido:** cargar `summary.csv` en tu UI para un dashboard de muchas máquinas.  
+  - **Detalle técnico:** abrir `summary.json` y las categorías para inspección profunda.  
+  - **Iconos:** verde si completado; amarillo si faltan clases; rojo si error exportando.  
+
+---
+
+### Extensiones recomendadas
+
+- **Inventario remoto:** iterar sobre una lista de equipos con CIM remoting y consolidar snapshots.  
+- **Firma del snapshot:** calcular hash de cada archivo para integridad.  
+- **Comparativos:** generar diffs entre snapshots por host para detectar cambios de hardware.  
+- **Etiquetas de proyecto:** agregar campos de ubicación, responsable y propósito para auditoría.  
+
+7. **Inventario de software:** Listar apps instaladas por origen (MSI, Store, portable) con versiones.
+### Inventario de software por origen con versiones
+### Qué detecta y cómo clasifica
+
+- **MSI:**
+  - **Origen:** entradas de registro en HKLM/HKCU (incluye x86 en WOW6432Node).
+  - **Datos:** nombre, versión, publisher, fecha, ubicación e uninstall string.
+- **Store (AppX):**
+  - **Origen:** paquetes de Microsoft Store vía `Get-AppxPackage`.
+  - **Datos:** nombre, versión, publisher, arquitectura, carpeta de instalación, usuario.
+- **Portable:**
+  - **Origen:** EXE encontrados en carpetas configurables, no registrados como MSI.
+  - **Datos:** nombre de producto, versión, publisher, ruta y tamaño. Usa metadatos del ejecutable.
+
+---
+
+### Cómo integrarlo en tu Gestor de Scripts Universal
+
+- **UI:**
+  - **Carpeta de salida:** selector para `$OutputPath`.
+  - **Opciones:**
+    - **Escanear portable:** toggle para `-ScanPortable`.
+    - **Raíces a escanear:** editor de lista para `$PortableRoots`.
+    - **AppX todos los usuarios:** toggle para `-IncludeAllUsersAppX`.
+- **Ejecución:**
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Inventory-Software.ps1" `
+      -OutputPath "D:\Inventarios\PC-001" `
+      -LogPath "D:\Inventarios\Logs" `
+      -ScanPortable `
+      -PortableRoots @("D:\Apps","C:\Tools") `
+      -IncludeAllUsersAppX
+  ```
+- **Visualización:**
+  - **Tablas:** carga msi.csv, store.csv y portable.csv en tabs separados.
+  - **Resumen:** usa summary.csv para mostrar conteos y top publishers.
+  - **Iconos:** verde si exportación completa; amarillo si portable desactivado; rojo si errores.
+
+---
+
+### Extensiones recomendadas
+
+- **Detección de orígenes adicionales:** Winget/Chocolatey leyendo sus bases locales para clasificar “paquetes”.
+- **Firmas de integridad:** hashes de EXE portables para control de cambios.
+- **Comparativos entre snapshots:** detectar nuevas instalaciones o desinstalaciones.
+- **Filtro de sistema:** excluir componentes de Microsoft para ver solo software de terceros.
+- **Exportación unificada:** generar un único CSV con columna “Origin” para analítica cruzada.
+
+8. **Hardening de Windows:** Deshabilitar servicios inseguros, SMBv1, macros y autorun.
+### Hardening de Windows: deshabilitar servicios inseguros, SMBv1, macros y autorun
+
+### Qué endurece y por qué es seguro
+
+- **Servicios inseguros:** reduce superficie de ataque (SNMP, Telnet, RemoteRegistry, SSDP/UPnP, NetBIOS/Browser) solo si existen, con parada segura y cambio a inicio deshabilitado.  
+- **SMBv1:** elimina el protocolo obsoleto y vulnerable; además refuerza el stack para evitar invitados inseguros.  
+- **Autorun/AutoPlay:** bloquea ejecución automática desde medios externos, mitigando malware de USB/medios.  
+- **Macros de Office:** deshabilita macros por política y bloquea contenido marcado desde internet, manteniendo Vista Protegida.
+
+---
+
+### Cómo usarlo con tu Gestor de Scripts Universal
+
+- **UI:**
+  - Toggle: Dry Run (simular).
+  - Toggle: Rollback habilitado.
+  - Panel de resultados: muestra hardening.log y diff-services.csv.
+- **Ejecución:**
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Hardening-Windows.ps1" `
+      -LogPath "D:\Seguridad\Logs" `
+      -AuditPath "D:\Seguridad\Auditoria" `
+      -DryRun:$false `
+      -EnableRollback
+  ```
+- **Visualización:**
+  - Icono verde si todas las operaciones terminan sin ERROR.
+  - Amarillo si hay WARN (servicios ausentes, claves no presentes).
+  - Botón para abrir la carpeta de auditoría de la sesión.
+
+---
+
+### Extensiones recomendadas
+
+- **Plantillas por rol:** “Workstation”, “Server”, “Kiosk” con listas de servicios y políticas diferenciadas.  
+- **GPO local automática:** aplicar las mismas políticas vía LGPO para mayor traza.  
+- **Reinicio controlado:** programar reinicio si desactivar SMBv1 lo requiere en ciertos builds.  
+- **Rollback real:** script complementario que lea el snapshot “before” y restaure `StartType` de servicios y valores de registro cambiados.  
+
+9. **Mapeo de unidades:** Conectar y persistir rutas de red con credenciales seguras.
+### Mapeo de unidades de red con credenciales seguras y persistencia
+
+### Qué hace y por qué es sólido
+
+- **Múltiples mapeos en una pasada:** estructura por objetos para definir letra, ruta, etiqueta y persistencia por unidad.
+- **Credenciales seguras:** acepta PSCredential en memoria; opcionalmente guarda en Credential Manager para reconexión sin prompts.
+- **Conectividad y verificación:** prueba host, acceso al share, mapea y valida que la unidad sea accesible.
+- **Persistencia real:** usa net use con /persistent:yes para reconectar al iniciar sesión.
+- **Auditoría:** log por sesión y resumen en CSV/JSON para tu dashboard.
+
+---
+
+### Cómo usarlo en tu Gestor de Scripts Universal
+
+- **UI:**
+  - Tabla editable con columnas: DriveLetter, Path, Label, Persist, UseCurrentUser, CredentialTarget.
+  - Botón “Agregar credencial” que capture PSCredential (usuario/contraseña) y opcionalmente la guarde con un nombre en Credential Manager.
+  - Toggle “ForceRemap” para recrear mapeos existentes.
+
+- **Ejecución:**
+  ```powershell
+  $cred = [pscredential]::new("DOMINIO\usuario",(Read-Host "Contraseña" -AsSecureString))
+  $Mappings = @(
+    @{ DriveLetter='Z'; Path='\\fileserver01\proyectos'; Label='Proyectos'; Persist=$true; Credential=$cred; CredentialTarget='fileserver01\proyectos' },
+    @{ DriveLetter='Y'; Path='\\fileserver01\recursos'; Label='Recursos'; Persist=$true; UseCurrentUser=$true }
+  )
+
+  powershell.exe -ExecutionPolicy Bypass -File ".\Map-NetworkDrives.ps1" `
+      -Mappings $Mappings `
+      -ForceRemap `
+      -LogPath "D:\GSU\Logs"
+  ```
+
+- **Visualización:**
+  - Muestra el log y el resumen (status por unidad).
+  - Íconos: verde si OK, amarillo si WARN (host inaccesible/vpn), rojo si ERROR.
+
+---
+
+### Extensiones recomendadas
+
+- **Desconexión controlada:** módulo complementario “Unmap-NetworkDrives.ps1” con lista de unidades a desmontar y auditoría.
+- **Plantillas por rol:** “Diseño”, “Contabilidad”, “Operaciones” con conjuntos de shares predefinidos.
+- **Validación de permisos:** prueba de lectura/escritura creando un archivo temporal en el share para verificar permisos efectivos.
+- **Reconexión automática:** tarea programada que remapea si el share cae o cambia la red (ideal para laptops).
+
+10. **Limpieza de cachés:** Vaciar temp, prefetch y logs antiguos con exclusiones inteligentes.
+### Limpieza de cachés con exclusiones inteligentes, auditoría y modo seguro
+
+### Qué hace y por qué es sólido
+
+- **Rutas clave:** limpia Temp del usuario y, opcionalmente, Temp del sistema y Prefetch sin tocar archivos recientes críticos.  
+- **Logs antiguos:** borra logs viejos por días y tamaño, enfocándose en lo que realmente libera espacio.  
+- **Exclusiones inteligentes:** evita rutas sensibles y patrones de archivos importantes; configurable para tus reglas.  
+- **Seguridad operativa:** evita eliminar archivos en uso, reintenta, y ofrece **DryRun** para validar antes.  
+- **Auditoría completa:** actions.log registra cada acción; summary.csv/json dan cifras para tu dashboard.
+
+---
+
+### Cómo usarlo en tu Gestor de Scripts Universal
+
+- **UI:**
+  - **Toggles:** IncludePrefetch, IncludeSystemTemp, DryRun.
+  - **Parámetros:** LogRetentionDays, MinLogSizeMB.
+  - **Listas editables:** ExtraLogRoots, ExcludePaths, ExcludePatterns, AdditionalTempDirs.
+  - **Botón:** Ejecutar limpieza.
+
+- **Ejecución:**
+  ```powershell
+  powershell.exe -ExecutionPolicy Bypass -File ".\Clean-Caches.ps1" `
+      -LogRetentionDays 21 `
+      -MinLogSizeMB 10 `
+      -IncludePrefetch `
+      -IncludeSystemTemp `
+      -ExtraLogRoots @("D:\AppLogs","C:\ProgramData\MyApp\Logs") `
+      -ExcludePaths @("C:\ProgramData\MyApp\Config") `
+      -ExcludePatterns @("*.conf","*.cfg") `
+      -LogPath "D:\GSU\Logs"
+  ```
+
+- **Visualización:**
+  - **Estado en vivo:** muestra actions.log.
+  - **Resumen:** carga summary.csv/json y pinta un indicador de espacio liberado.
+  - **Iconos:** verde si se liberó espacio; amarillo si DryRun; rojo si hubo errores.
+
+---
+
+### Extensiones recomendadas
+
+- **Planificador:** tarea programada semanal con parámetros predefinidos y notificación al finalizar.  
+- **Prueba de impacto:** comparar tamaño de Temp antes y después y graficarlo en tu dashboard.  
+- **Política por rol:** perfiles “Workstation”, “Dev”, “Server” con exclusiones y raíces distintas.  
+- **Cuota de limpieza:** límites por sesión (no borrar más de X GB) para entornos delicados.  
+
+11. **Rotación de logs:** Comprimir, mover y purgar por antigüedad y tamaño.
+- **Propósito:** Automatizar la rotación de logs en Windows: comprimir archivos antiguos, moverlos a un repositorio de archivo, y purgar por antigüedad y/o tamaño total. Previene crecimientos descontrolados y mantiene trazabilidad con auditoría en CSV/JSON.
+- **Alcance:**  
+  - **Entradas:** rutas de logs, ruta de archivo, días para comprimir/purgar, tamaño máximo del archivo, modo DryRun, patrones de exclusión.  
+  - **Salidas:** archivos .zip por carpeta/fecha, logs de ejecución, auditoría en CSV/JSON, reporte final en consola.  
+  - **Validaciones:** existencia de rutas, permisos de escritura, idempotencia (no recomprimir ni mover duplicados), exclusión segura de archivos en uso y rutas sensibles.
+
+## Explicación de uso
+
+### Parámetros
+
+- **LogRoots:** Rutas de carpetas donde están los logs a gestionar.  
+- **ArchivePath:** Carpeta destino para los archivos comprimidos y repositorio de archivo.  
+- **CompressAfterDays:** Días de antigüedad para entrar en compresión (por defecto 7).  
+- **PurgeAfterDays:** Días de antigüedad para purgar archivos originales (por defecto 30).  
+- **MaxArchiveSizeMB:** Tamaño máximo del repositorio de archivo; si se supera, purga ZIPs más antiguos.  
+- **DryRun:** Simula todas las acciones, genera auditoría, no modifica archivos.  
+- **ExcludePatterns:** Patrones tipo wildcard para no tocar archivos sensibles o en uso.  
+- **ExecutionLogPath:** Ruta del log de ejecución; si no se indica, se crea en %TEMP%\LogRotation.  
+- **AuditCsvPath / AuditJsonPath:** Rutas para la auditoría; se crean por defecto en %TEMP%\LogRotation.  
+- **VerboseConsole:** Imprime el log de ejecución en consola además de archivo.  
+- **IncludeEmptyDirs:** Habilita limpieza de directorios vacíos tras la rotación.
+
+### Ejecución directa
+
+- **Prueba en modo simulación (segura):**
+  - **Comando:**  
+    ```
+    .\Rotate-Logs.ps1 -LogRoots "C:\Logs\App1","C:\Logs\App2" -ArchivePath "D:\Archive\Logs" -DryRun -VerboseConsole
+    ```
+- **Ejecución real con defaults:**
+  - **Comando:**  
+    ```
+    .\Rotate-Logs.ps1 -LogRoots "C:\Logs" -ArchivePath "D:\Archive\Logs"
+    ```
+- **Con límites específicos:**
+  - **Comando:**  
+    ```
+    .\Rotate-Logs.ps1 -LogRoots "C:\IISLogs","C:\ServiceLogs" -ArchivePath "\\NAS01\Archive\Logs" -CompressAfterDays 3 -PurgeAfterDays 15 -MaxArchiveSizeMB 1024 -ExcludePatterns "*.log.current","*.tmp" -VerboseConsole
+    ```
+
+### Integración en tu Gestor de Scripts Universal
+
+- **Llamada desde UI:**  
+  - **Acción:** “Rotación de logs” con icono de archivo-zip y un badge de “DryRun” si está activo.  
+  - **Parámetros visibles:**  
+    - **LogRoots:** selector múltiple de carpetas (persistentes por perfil).  
+    - **ArchivePath:** selector de carpeta destino (permite UNC/NAS).  
+    - **CompressAfterDays / PurgeAfterDays / MaxArchiveSizeMB:** sliders con valores por defecto y tooltips.  
+    - **DryRun / IncludeEmptyDirs / VerboseConsole:** toggles.  
+    - **ExcludePatterns:** cuadro multi-línea con presets por rol (IIS, SQL, App).  
+  - **Estado en tiempo real:** muestra el **ExecutionLogPath** y contador de acciones del resumen.  
+  - **Salida:** enlaces al **CSV/JSON** de auditoría y al **log** final.
+
+- **Ejecución desde backend (ejemplo):**
+  - **PowerShell:**  
+    ```
+    $args = @{
+      LogRoots = @("C:\Logs\App1","C:\Logs\App2")
+      ArchivePath = "D:\Archive\Logs"
+      CompressAfterDays = 7
+      PurgeAfterDays = 30
+      MaxArchiveSizeMB = 2048
+      DryRun = $false
+      ExcludePatterns = @("*.lock","*.tmp","*.log.current")
+      VerboseConsole = $true
+    }
+    Start-Process powershell -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","Rotate-Logs.ps1", @(
+      "-LogRoots", ($args.LogRoots -join ","),
+      "-ArchivePath", $args.ArchivePath,
+      "-CompressAfterDays", $args.CompressAfterDays,
+      "-PurgeAfterDays", $args.PurgeAfterDays,
+      "-MaxArchiveSizeMB", $args.MaxArchiveSizeMB,
+      $args.DryRun ? "-DryRun" : "",
+      "-ExcludePatterns", ($args.ExcludePatterns -join ","),
+      $args.VerboseConsole ? "-VerboseConsole" : ""
+    ) -Wait
+    ```
+  - **UI:** muestra progreso por raíz (barra) y totales por acción (tabla compacta: Compress, Purge-Age, Purge-Size).
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - **Idempotencia:** ZIP nombrado por carpeta+fecha; si existe, no se recrea. Evita recomprimir duplicados.  
+  - **Bloqueos:** detección de archivos bloqueados para no intentar comprimir/purgar.  
+  - **Exclusiones:** patrones wildcard para evitar tocar transacciones en curso (*.current, *.lck, *.tmp).  
+  - **Estructura de archivo:** YYYY/MM/DD/source para trazabilidad y limpieza por periodos.
+
+- **Auditoría:**
+  - **Detalles:** cada acción con timestamp, source, target, tamaño y status (OK/ERROR/DRYRUN).  
+  - **Formatos:** CSV para análisis rápido y JSON para integración en tu gestor/reportes.  
+  - **Resumen final:** tabla con conteo y tamaño agregado por acción.  
+  - **Logs:** archivo de ejecución con niveles INFO/WARN/ERROR y opcional salida en consola.
+
+- **Escalabilidad:**
+  - **Multirraíz:** procesa N carpetas en una sola corrida.  
+  - **Control de tamaño:** purga incremental de ZIPs antiguos hasta cumplir el umbral.  
+  - **Paralelismo opcional (extensión):** se puede paralelizar por raíz con Start-Job/ThreadJob garantizando lock de escritura al CSV/JSON mediante colas y merge al final.
+
+- **Seguridad:**
+  - **Rutas seguras:** no hardcodea rutas; defaults se crean en %TEMP%\LogRotation para logs/auditoría.  
+  - **Evitar borrados críticos:** purga solo en raíces especificadas; nunca toca ArchivePath fuera de *.zip.  
+  - **Rollback básico:** DryRun para verificar; en ejecución real, las purgas son definitivas. Para rollback extendido, ver extensiones.  
+  - **Permisos:** valida existencia y crea directorios; si falla, registra en auditoría sin abortar toda la corrida.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - **Multihost:** ejecutar en varios equipos vía WinRM/PSRemoting con preset de raíces por rol (IIS, SQL, App).  
+  - **Notificaciones:** resumen por correo/Teams con tabla de acciones y enlaces al CSV/JSON.  
+  - **Perfiles/presets:** JSON de configuración por entorno (DEV/QA/PROD) consumido por el módulo.  
+  - **Comparativos:** hash de ZIP (SHA256) y diff de conteos por día para detectar anomalías.  
+  - **Compresión inteligente:** agrupar por tamaño objetivo (p. ej., ~500MB por zip) y por fecha de última escritura.
+
+- **Siguiente paso (propuesta concreta):**
+  - **Paralelismo por raíz con merge de auditoría:** lanzar un job por LogRoot, escribir auditoría temporal aislada y al finalizar, merge secuencial y consolidación de resumen.  
+  - **Rollback extendido:** mover a “.trash” dentro de ArchivePath por 24–48h antes de eliminación definitiva, con tarea de limpieza programada.  
+  - **Preset JSON:** añade un parámetro `-ConfigPath` que cargue LogRoots, exclusiones y umbrales.  
+  - **UI:** tarjetas por raíz con contadores en vivo y un toggle “Simulación” prominente. Badge de límite de archivo cuando el umbral se exceda.
+
+12. **Sincronización de carpetas:** Copiar diferencial con checksum (robocopy + resumen).
+## Resumen del módulo
+
+- **Propósito:** Sincronizar carpetas de forma diferencial y confiable en Windows, usando Robocopy para rendimiento y un verificador de checksum (SHA256 por defecto) para asegurar integridad de los archivos copiados. Genera auditorías en CSV/JSON y un resumen de resultados para trazabilidad.
+- **Alcance:**
+  - **Entradas:** origen/destino, patrones de inclusión/exclusión, modo espejo (mirror), verificación de checksum, concurrencia, reintentos, ejecución en simulación (DryRun).
+  - **Salidas:** log de ejecución detallado, auditoría CSV/JSON con cada acción (copiar/actualizar/eliminar/verificado), y un resumen de conteos y tamaños.
+  - **Validaciones:** existencia y permisos de rutas, idempotencia (robocopy diferencial), control seguro de eliminaciones (solo si Mirror=true), y manejo de archivos de sistema/ocultos si se desea.
+
+## Explicación de uso
+
+### Parámetros
+
+- **Source / Destination:** Carpetas de origen y destino a sincronizar.
+- **IncludePatterns / ExcludePatterns:** Wildcards para incluir o excluir archivos (ej.: “*.log”, “*.tmp”). Incluye subcarpetas.
+- **Mirror:** Si está activo, replica en destino eliminando elementos que ya no existen en origen (comportamiento tipo /MIR).
+- **VerifyChecksum:** Calcula hash en origen y destino para los archivos copiados/actualizados y confirma integridad.
+- **ChecksumAlgorithm:** SHA256 (por defecto), SHA1 o MD5.
+- **ThreadCount, RetryCount, WaitSeconds:** Control de concurrencia y reintentos de Robocopy.
+- **PreserveAttributes:** Copia atributos y timestamps de directorios también (DCOPY:T).
+- **UseLongPaths:** Usa el prefijo \\?\ para manejar rutas largas (NTFS) y UNC largas.
+- **CopyHiddenSystem:** Incluye archivos Hidden y System si tu caso lo requiere.
+- **DryRun:** No modifica nada; lista y audita como simulación.
+- **ExecutionLogPath, AuditCsvPath, AuditJsonPath, SummaryReportPath:** Rutas de salida; si no se especifican, se crean en %TEMP%\FolderSync.
+
+### Ejecución directa
+
+- **Prueba segura (simulación):**
+  ```
+  .\Sync-Folders.ps1 -Source "C:\Data" -Destination "D:\Backup\Data" -DryRun -VerifyChecksum -IncludePatterns "*.*" -ExcludePatterns "*.tmp","*.bak"
+  ```
+- **Copia diferencial estándar:**
+  ```
+  .\Sync-Folders.ps1 -Source "C:\Projects" -Destination "\\NAS\Backup\Projects" -ThreadCount 8 -RetryCount 2 -WaitSeconds 2 -VerifyChecksum
+  ```
+- **Modo espejo con verificación y rutas largas:**
+  ```
+  .\Sync-Folders.ps1 -Source "C:\Media" -Destination "E:\MediaMirror" -Mirror -VerifyChecksum -ChecksumAlgorithm SHA256 -UseLongPaths -PreserveAttributes -ExcludePatterns "*.lck","*.tmp"
+  ```
+
+### Integración en tu Gestor de Scripts Universal
+
+- **UI sugerida:**
+  - **Icono:** doble carpeta con flechas; badge “DryRun” cuando corresponda.
+  - **Campos:** 
+    - **Source/Destination:** selector de carpeta con historial por perfil.
+    - **Include/ExcludePatterns:** cuadro multi-línea con presets (Dev, Logs, Media).
+    - **Mirror, VerifyChecksum, UseLongPaths, PreserveAttributes, CopyHiddenSystem:** toggles.
+    - **ThreadCount/RetryCount/WaitSeconds:** sliders con tooltips.
+  - **Estado en vivo:** stream del **ExecutionLogPath** y progreso por conteos (Copied, Skipped, Deleted, Verify).
+  - **Salida:** enlaces a **Audit CSV/JSON**, **Robocopy raw log** y **Summary report**.
+
+- **Llamada desde backend (ejemplo):**
+  ```
+  $args = @{
+    Source = "C:\Data"
+    Destination = "\\NAS01\Archive\Data"
+    IncludePatterns = @("*.*")
+    ExcludePatterns = @("*.tmp","*.lock")
+    Mirror = $false
+    VerifyChecksum = $true
+    ThreadCount = 8
+    RetryCount = 2
+    WaitSeconds = 2
+    UseLongPaths = $true
+  }
+
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Sync-Folders.ps1",
+    "-Source", $args.Source,
+    "-Destination", $args.Destination,
+    "-IncludePatterns", ($args.IncludePatterns -join ","),
+    "-ExcludePatterns", ($args.ExcludePatterns -join ","),
+    $args.Mirror ? "-Mirror" : "",
+    $args.VerifyChecksum ? "-VerifyChecksum" : "",
+    "-ThreadCount", $args.ThreadCount,
+    "-RetryCount", $args.RetryCount,
+    "-WaitSeconds", $args.WaitSeconds,
+    $args.UseLongPaths ? "-UseLongPaths" : "",
+    $args.PreserveAttributes ? "-PreserveAttributes" : "",
+    $args.CopyHiddenSystem ? "-CopyHiddenSystem" : ""
+  ) -Wait
+  ```
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - **Idempotencia:** Robocopy copia solo cambios; con /FFT se minimizan falsos positivos entre NTFS/FAT/UNC. DryRun permite validar efectos sin tocar archivos.
+  - **Rutas largas:** opción de \\?\ para evitar errores por path > 260 caracteres.
+  - **Bloqueos y reintentos:** /R y /W controlan reintentos; /MT acelera entrenamiento sin saturar I/O.
+  - **Atributos:** preserva timestamps y atributos cuando es necesario (DCOPY:T).
+
+- **Auditoría:**
+  - **Eventos:** Robocopy-Run (con conteos), Verify (OK/MISMATCH), Delete (si Mirror), y errores.
+  - **Formatos:** CSV para análisis inmediato y JSON para integraciones y paneles.
+  - **Resumen final:** reporte TXT legible con totales y tamaños, y enlaces a logs.
+
+- **Escalabilidad:**
+  - **Concurrencia:** Robocopy /MT:8 configurable; presets por tipo de contenido (p. ej., Media = MT:32).
+  - **Multihost:** ejecutable remotamente vía PSRemoting con rutas UNC; auditorías centralizadas en NAS.
+  - **Plantillas:** perfiles por rol (Dev/Logs/Media) con Include/Exclude y atributos predefinidos.
+
+- **Seguridad:**
+  - **Mirror con cautela:** solo elimina en destino si Mirror=true; DryRun recomendado antes de activar.
+  - **Exclusiones:** evita archivos temporales/lock para reducir inconsistencias.
+  - **Integridad:** checksum post-copia detecta divergencias; si hay MISMATCH, queda registrado para remediación.
+
+- **Fallbacks y límites:**
+  - **Parseo robusto:** el resumen se infiere del output de Robocopy; si el formato varía, el módulo sigue funcionando porque la auditoría por archivo viene del verificador y no de la tabla.
+  - **Errores parciales:** no detiene todo el proceso; registra y continúa donde sea razonable.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - **Lista exacta de archivos copiados:** parseo de /LOG para eventos “New File”/“Newer” y auditoría por archivo, con tamaño.
+  - **Reintento de mismatches:** recopia automáticamente los archivos con MISMATCH hasta N intentos y marca resultado.
+  - **Notificaciones:** envío de resumen a correo/Teams con métricas y enlaces a logs.
+  - **Presets por rol:** `-ConfigPath` JSON con perfiles (DEV/QA/PROD) que definen patrones, atributos y espejo.
+  - **Comparativos entre snapshots:** guardar inventario antes/después (CSV) y generar diff con cambios.
+
+- **Siguiente paso (propuesta concreta):**
+  - **Añadir -ConfigPath y multirraíz:** permitir una lista de pares Source/Destination, ejecutados en paralelo (ThreadJob) y merge de auditoría al final.
+  - **Auto-remediación de checksum:** si `VerifyChecksum` detecta MISMATCH, reintento de copia y, si persiste, mover a una cuarentena en destino para revisión.
+  - **UI:** barra por par (S/D), contador en vivo (Copied/Deleted/Verify), y badge alerta si hay MISMATCH>0.
+
+13. **Backup incremental:** Programar copias versiónadas con retención y verificación. 
+## Resumen del módulo
+
+- **Propósito:** Realizar backups incrementales versiónados en Windows con verificación de integridad y políticas de retención. Cada ejecución crea una “versión” con metadatos, un catálogo de archivos, auditoría CSV/JSON, y controla la retención por edad y/o número de versiones. Opcionalmente, programa la tarea en el Programador de tareas de Windows.
+- **Alcance:**
+  - **Entradas:** origen, raíz de backup, nombre lógico del conjunto, retención por días y por cantidad de versiones, verificación de checksum, concurrencia, simulación (DryRun), programación.
+  - **Salidas:** carpeta de versión con estructura y manifiesto, auditoría CSV/JSON, log de ejecución, resumen final, y verificación de integridad (OK/MISMATCH).
+  - **Validaciones:** existencia de rutas, permisos, idempotencia (catalogar y copiar solo cambios), límites seguros en retención (no borra fuera del conjunto), y tratamiento de rutas largas.
+
+## Explicación de uso
+
+### Parámetros
+
+- **Source:** Carpeta origen a respaldar.
+- **RootBackup:** Carpeta raíz donde se guardarán los backups versiónados.
+- **SetName:** Nombre del conjunto (alfanumérico, guion y guion bajo). Define la subcarpeta del conjunto.
+- **RetentionDays / RetentionVersions:** Política de retención por antigüedad y por número máximo de versiones. Se aplican ambas.
+- **VerifyChecksum / ChecksumAlgorithm:** Verifica integridad comparando hashes entre origen y versión (SHA256 por defecto).
+- **ThreadCount / RetryCount / WaitSeconds:** Concurrencia y reintentos de Robocopy.
+- **IncludePatterns / ExcludePatterns:** Wildcards para controlar qué se copia.
+- **UseLongPaths:** Habilita prefijos \\?\ para rutas largas.
+- **DryRun:** Simula la ejecución (copia y retención sin modificar), pero genera manifiesto, catálogo y auditoría.
+- **ExecutionLogPath / AuditCsvPath / AuditJsonPath / SummaryReportPath:** Rutas de salida; se crean por defecto en %TEMP%\BackupIncremental.
+- **RegisterSchedule / ScheduleName / ScheduleTrigger:** Registrar/actualizar tarea en el Programador de tareas. Soporta: “Daily HH:MM”, “Hourly”, “Weekly Sun 03:00”.
+
+### Ejecución directa
+
+- **Prueba segura (simulación):**
+  ```
+  .\Backup-Incremental.ps1 -Source "C:\Data" -RootBackup "D:\Backups" -SetName "DataMain" -DryRun -VerifyChecksum
+  ```
+- **Backup con verificación y retención estándar:**
+  ```
+  .\Backup-Incremental.ps1 -Source "C:\Projects" -RootBackup "\\NAS\Backups" -SetName "Projects" -RetentionDays 30 -RetentionVersions 20 -VerifyChecksum -ThreadCount 8
+  ```
+- **Programado diario 02:00 con rutas largas:**
+  ```
+  .\Backup-Incremental.ps1 -Source "C:\Media" -RootBackup "E:\Backups" -SetName "Media" -VerifyChecksum -RegisterSchedule -ScheduleName "BackupMedia" -ScheduleTrigger "Daily 02:00" -UseLongPaths
+  ```
+
+### Integración en tu Gestor de Scripts Universal
+
+- **UI sugerida:**
+  - **Icono:** caja/drive con reloj; badge “Verify” si activo.
+  - **Campos:**
+    - **Source / RootBackup / SetName:** selectores y texto con validación de SetName.
+    - **RetentionDays / RetentionVersions:** sliders con tooltips.
+    - **Include/ExcludePatterns:** cuadro multi-línea con presets (Dev, Logs, Media).
+    - **VerifyChecksum, UseLongPaths, DryRun:** toggles.
+    - **ThreadCount, RetryCount, WaitSeconds:** sliders.
+    - **RegisterSchedule / ScheduleName / ScheduleTrigger:** controles para programación.
+  - **Estado en vivo:** stream del **ExecutionLogPath** y contadores por acción (Version-Created, Verify, Retention-Age, Retention-Count).
+  - **Salida:** enlaces a **manifest.json**, **catalog.csv**, **robocopy.log**, **Audit CSV/JSON** y **Summary**.
+
+- **Llamada desde backend (ejemplo):**
+  ```
+  $args = @{
+    Source = "C:\Data"
+    RootBackup = "D:\Backups"
+    SetName = "DataMain"
+    RetentionDays = 30
+    RetentionVersions = 20
+    VerifyChecksum = $true
+    ThreadCount = 8
+    RetryCount = 2
+    WaitSeconds = 2
+    UseLongPaths = $true
+  }
+
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Backup-Incremental.ps1",
+    "-Source", $args.Source,
+    "-RootBackup", $args.RootBackup,
+    "-SetName", $args.SetName,
+    "-RetentionDays", $args.RetentionDays,
+    "-RetentionVersions", $args.RetentionVersions,
+    $args.VerifyChecksum ? "-VerifyChecksum" : "",
+    "-ThreadCount", $args.ThreadCount,
+    "-RetryCount", $args.RetryCount,
+    "-WaitSeconds", $args.WaitSeconds,
+    $args.UseLongPaths ? "-UseLongPaths" : ""
+  ) -Wait
+  ```
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - **Versionado determinista:** estructura por fecha evita colisiones y facilita limpieza por periodos.
+  - **Idempotencia operativa:** Robocopy realiza copiado diferencial; DryRun valida antes de ejecutar real.
+  - **Rutas largas:** soporte \\?\ para evitar fallos por límites de 260 caracteres.
+  - **Catálogo y manifiesto:** snapshot por versión para auditoría y trazabilidad.
+
+- **Auditoría y verificación:**
+  - **Eventos:** Version-Created, Verify (OK/MISMATCH), Retention-Age, Retention-Count, Schedule-Register, errores.
+  - **Formatos:** CSV y JSON con tamaños y estados; log crudo de Robocopy para análisis avanzado.
+  - **Resumen:** reporte consolidado con conteos y tamaños, útil para tu UI y notificaciones.
+
+- **Retención segura:**
+  - **Doble política:** edad y cantidad; elimina solo dentro del conjunto ($SetName).
+  - **Orden estable:** selección FIFO por orden de las rutas versión (YYYY/MM/DD/HHmmss).
+
+- **Escalabilidad:**
+  - **Concurrencia:** /MT configurable; presets por tipo de contenido.
+  - **Multiconjuntos:** puedes lanzar múltiples instancias con distintos SetName; opcional -ConfigPath en extensión.
+  - **NAS/UNC:** soporte UNC y programación para ventanas de mantenimiento.
+
+- **Seguridad:**
+  - **Exclusiones inteligentes:** evita temporales y locks comunes.
+  - **DryRun:** previa obligatoria en entornos críticos.
+  - **Programación controlada:** argumentos explícitos y ExecutionPolicy Bypass solo para la tarea.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - **-ConfigPath (JSON/YAML):** definir múltiples conjuntos con retención y patrones por rol (DEV/QA/PROD), ejecución en paralelo y merge de auditorías.
+  - **Compresión por versión:** opción `-CompressVersion` para crear un ZIP del catálogo y/o de ciertos subdirectorios; almacenamiento híbrido.
+  - **Notificaciones:** envío de resumen por correo/Teams con links a manifest, catalog y auditorías.
+  - **Deduplicación simple:** cálculo de hashes para evitar almacenar duplicados grandes entre versiones (marcar referencias, no borrar).
+  - **Restore helper:** script complementario para restaurar una versión o archivo, con búsqueda por catálogo.
+
+- **Siguiente paso (propuesta concreta):**
+  - Añadir `-ConfigPath` para orquestar múltiples backups en un solo run, con ThreadJobs por conjunto y consolidación de auditoría.  
+  - Implementar “cuarentena de inconsistencias”: si `VerifyChecksum` detecta MISMATCH, recopia 1 vez y, si persiste, marca en catálogo y alerta en UI.  
+  - Integrar con tu Gestor: tarjetas por conjunto con medallas de “Version OK”, “Retention Applied”, “MISMATCH>0” y un gráfico de versiones en el tiempo.
+
+14. **Restauración rápida:** Reconstruir perfiles o apps desde backup con reporte final.
+## Resumen del módulo
+
+- **Propósito:** Restaurar rápidamente perfiles de usuario o aplicaciones desde backups versiónados, con selección simple de versión y componentes, validaciones de integridad, y un reporte final (CSV/JSON/TXT) para auditoría. Enfocado en tiempos de recuperación cortos y mínima fricción.
+- **Alcance:**
+  - **Entradas:** raíz de backup, conjunto (`SetName`), versión (auto-selección por UI simple), origen para catálogo, destino de restauración, modo de sobreescritura, filtros de rutas, verificación de checksum, simulación (`DryRun`).
+  - **Salidas:** restauración diferencial (solo faltantes/diferentes), reporte final (ejecución + auditoría CSV/JSON + resumen), logs detallados, y validación (OK/MISMATCH).
+  - **Validaciones:** existencia de versión y catálogo, rutas y permisos, idempotencia (no recopia idénticos), seguridad (exclusiones), y “UI” simple para selección (Out-GridView con fallback TTY).
+
+## Explicación de uso
+
+### Parámetros
+
+- **RootBackup / SetName:** Ubicación del conjunto de backups versiónados (estructura YYYY/MM/DD/HHmmss). El script detecta versiones automáticamente.
+- **VersionPath:** Ruta exacta de la versión a restaurar. Si no se indica, la UI simple permite elegir o se toma la más reciente.
+- **RestoreTarget:** Carpeta destino donde se reconstruirá el perfil/app.
+- **Overwrite:** No es necesario, Robocopy maneja diferencias; úsalo como intención informativa en tu UI (el módulo ya copia diferencial).
+- **IncludeSubpaths:** Lista de subcarpetas relativas a la versión para restaurar; por defecto “*” (todo).
+- **ExcludePatterns:** Patrones a excluir (temporales, locks, etc.).
+- **VerifyChecksum / ChecksumAlgorithm:** Valida integridad de los archivos restaurados.
+- **ThreadCount / RetryCount / WaitSeconds:** Concurrencia y reintentos del Robocopy.
+- **UseLongPaths:** Manejo de rutas largas \\?\ para NTFS y UNC.
+- **DryRun:** Simula la restauración (lista, auditoría y reporte) sin copiar.
+
+### Ejecución directa
+
+- **Restaurar todo desde la última versión (simulación + verificación):**
+  ```
+  .\Restore-Quick.ps1 -RootBackup "D:\Backups" -SetName "DataMain" -RestoreTarget "C:\Data" -DryRun -VerifyChecksum
+  ```
+- **Restaurar versión específica y solo subcarpetas:**
+  ```
+  .\Restore-Quick.ps1 -RootBackup "\\NAS\Backups" -SetName "Projects" -VersionPath "\\NAS\Backups\Projects\2025\10\17\124200" -RestoreTarget "D:\Projects" -IncludeSubpaths "RepoA","RepoB" -VerifyChecksum
+  ```
+- **Rutas largas y exclusiones adicionales:**
+  ```
+  .\Restore-Quick.ps1 -RootBackup "E:\Backups" -SetName "Media" -RestoreTarget "C:\Media" -UseLongPaths -ExcludePatterns "*.tmp","*.lck","*.cache"
+  ```
+
+### Integración en tu Gestor de Scripts Universal (UI simple)
+
+- **Interacción mínima:**
+  - **Selección de versión:** abre Out-GridView con lista de versiones (fecha y tamaño). Si no hay UI, usa la más reciente y lo indica en log.
+  - **Selección de subcarpetas:** segundo Out-GridView para marcar subcarpetas; si se omite, restaura todo.
+- **Llamada desde backend (ejemplo):**
+  ```
+  $args = @{
+    RootBackup = "D:\Backups"
+    SetName = "DataMain"
+    RestoreTarget = "C:\Data"
+    VerifyChecksum = $true
+    ThreadCount = 8
+    UseLongPaths = $true
+  }
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Restore-Quick.ps1",
+    "-RootBackup",$args.RootBackup,"-SetName",$args.SetName,"-RestoreTarget",$args.RestoreTarget,
+    $args.VerifyChecksum ? "-VerifyChecksum" : "",
+    "-ThreadCount",$args.ThreadCount,
+    $args.UseLongPaths ? "-UseLongPaths" : ""
+  ) -Wait
+  ```
+- **Visualización de estado en tu UI:**
+  - **Log en vivo:** tail del ExecutionLogPath.
+  - **Contadores:** Restore-Run, Verify (OK/MISMATCH/MISSING).
+  - **Salida:** enlaces a Robocopy raw log, auditorías y resumen final.
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - **Idempotencia:** Robocopy copia solo lo que falta o difiere; evita recopia y minimiza riesgo.
+  - **UI simple:** Out-GridView reduce fricción y errores humanos en la selección; fallback seguro a la última versión.
+  - **Rutas largas:** opción \\?\ para evitar fallos por path > 260 chars.
+  - **Subcarpetas:** restauración granular por componentes de perfiles/apps, útil para RTO corto.
+
+- **Auditoría y reporte:**
+  - **Eventos:** Restore-Run por run (global o por subpath) y Verify detallado con estados OK/MISMATCH/MISSING.
+  - **Formatos:** CSV/JSON integrables, más resumen TXT legible para tu dashboard o envío rápido.
+  - **Trazabilidad:** guarda el log crudo de Robocopy y todo se referencia en el resumen.
+
+- **Seguridad:**
+  - **Exclusiones:** evita temporales/locks; reduce inconsistencias.
+  - **DryRun:** modo obligatorio recomendado antes de ejecución real en entornos críticos.
+  - **Permisos:** crea destino de forma segura; no borra fuera de su ámbito.
+
+- **Casos límite contemplados:**
+  - **Sin UI disponible:** continúa con la versión más reciente y lo registra.
+  - **Subcarpeta inexistente:** avisa y continúa con el resto (WARN + auditoría).
+  - **Verificación parcial:** checksum aplica solo a lo elegido; archivos faltantes se registran como MISSING.
+
+- **Rendimiento:**
+  - **Concurrencia /MT:** configurable para acelerar; reintentos moderados /R y /W.
+  - **E/S minimizada:** /NP,/NFL,/NDL mantienen logs concisos mientras el raw log conserva detalles.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - **Selector por catálogo:** mostrar `catalog.csv` para elegir archivos concretos con Out-GridView.
+  - **Cuarentena de mismatches:** mover archivos con MISMATCH a una subcarpeta para revisión.
+  - **Notificaciones:** enviar resumen (TXT/CSV) a correo/Teams integrado con tu gestor.
+  - **Pre-restore diff:** inventario del destino antes y después, con diff para auditoría.
+  - **Preset de perfiles:** JSON de mapeos “PerfilUsuario”, “IISApp”, “ServicioX” con subpaths típicos y exclusiones.
+
+- **Siguiente paso (propuesta concreta):**
+  - Añadir `-CatalogDriven` para restaurar por lista desde `catalog.csv`, con barra de progreso y reintentos automáticos en mismatches.  
+  - Integrar un `-ConfigPath` con presets de restauración por rol y un “wizard” de 3 pasos en tu UI: versión → componentes → confirmación (DryRun primero). 
+
+15. **Gestión de procesos:** Terminar procesos colgados con lista blanca y razón de cierre.
+## Resumen del módulo
+
+- **Propósito:** Identificar y terminar procesos colgados de forma segura, respetando una lista blanca y registrando la razón de cierre. Incluye UI simple para confirmación, simulación (DryRun), auditoría CSV/JSON y log de ejecución.
+- **Alcance:**
+  - **Entradas:** criterios de “colgado” (no responde, sin CPU, runtime excesivo), lista blanca por nombre/ruta/usuario, selección manual opcional, modo DryRun, cierre forzado y cierre de hijos.
+  - **Salidas:** procesos finalizados con razón y detalles (PID, nombre, usuario, ruta), auditoría CSV/JSON, log y resumen final.
+  - **Validaciones:** existencia del proceso al actuar, respeto a lista blanca, exclusión de procesos críticos del sistema, idempotencia (no intentar finalizar procesos ya muertos).
+
+## Explicación de uso
+
+### Parámetros
+
+- **SampleIntervalSeconds:** Segundo muestreo para calcular delta de CPU. Si el delta ~0 ms, se considera ZeroCPU.
+- **MaxRuntimeMinutes:** Umbral de runtime excesivo (ExceededRuntime).
+- **OnlyNotResponding:** Limita candidatos a procesos con ventana principal y que no responden.
+- **IncludeServices:** Permite incluir procesos sin UI/sesión 0 (servicios/sistema). Desactivado por seguridad.
+- **WhitelistNames / WhitelistPaths / WhitelistUsers:** Lista blanca por nombre, ruta completa y usuario. Incluye críticos extras por defecto.
+- **ExtraCriticalNames:** Nombres de procesos del sistema que nunca se deben terminar.
+- **DryRun:** Simula terminaciones para validar criterios y UI.
+- **ForceKill:** Usa Stop-Process -Force. Activo por defecto; puedes desactivarlo.
+- **KillChildren:** Intenta terminar procesos hijos del candidato.
+- **ExecutionLogPath / AuditCsvPath / AuditJsonPath / SummaryReportPath:** Salidas de log/auditoría con defaults en %TEMP%\ProcessManager.
+
+### Ejecución directa
+
+- **Simulación segura (UI simple):**
+  ```
+  .\Manage-Processes.ps1 -DryRun -OnlyNotResponding
+  ```
+- **Detección por ZeroCPU y runtime, respetando lista blanca:**
+  ```
+  .\Manage-Processes.ps1 -SampleIntervalSeconds 5 -MaxRuntimeMinutes 180 -WhitelistNames "explorer","powershell","svchost" -KillChildren
+  ```
+- **Incluir servicios (cautela) y desactivar Force:**
+  ```
+  .\Manage-Processes.ps1 -IncludeServices -ForceKill:$false -MaxRuntimeMinutes 60
+  ```
+
+### Integración en tu Gestor de Scripts Universal (UI simple)
+
+- **UI mínima:**
+  - **Toggles:** DryRun, OnlyNotResponding, IncludeServices, KillChildren, ForceKill.
+  - **Campos:** SampleIntervalSeconds, MaxRuntimeMinutes.
+  - **Listas:** WhitelistNames/Paths/Users (multi-línea).
+  - **Estado:** tail del ExecutionLogPath y contador por acción del resumen.
+- **Flujo:**
+  1. Ejecuta muestreo y muestra candidatos en Out-GridView para selección.
+  2. Si no hay Out-GridView, pide índices en consola.
+  3. Aplica terminación y registra auditoría.
+- **Backend (ejemplo):**
+  ```
+  $args = @{
+    SampleIntervalSeconds = 5
+    MaxRuntimeMinutes = 120
+    WhitelistNames = @("explorer","svchost","powershell")
+    DryRun = $false
+    OnlyNotResponding = $true
+  }
+
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Manage-Processes.ps1",
+    "-SampleIntervalSeconds",$args.SampleIntervalSeconds,
+    "-MaxRuntimeMinutes",$args.MaxRuntimeMinutes,
+    "-WhitelistNames",($args.WhitelistNames -join ","),
+    $args.DryRun ? "-DryRun" : "",
+    $args.OnlyNotResponding ? "-OnlyNotResponding" : ""
+  ) -Wait
+  ```
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - **Métricas dobles:** muestreo de CPU en dos puntos evita falsos positivos por instantáneas.
+  - **NotResponding real:** usa MainWindowHandle y Responding para GUI; filtrado opcional de servicios.
+  - **Runtime controlado:** protege contra procesos fugitivos de larga ejecución.
+  - **Idempotencia:** verifica existencia antes de terminar; los ya finalizados no se reintentan.
+
+- **Auditoría:**
+  - **Razón explícita:** Reason agrega “NotResponding”, “ZeroCPU” y/o “ExceededRuntime”.
+  - **Eventos:** Skip-Whitelist, Already-Exited, Terminate, Process-Error; estados OK/ERROR/DRYRUN.
+  - **Formatos:** CSV/JSON listos para paneles; resumen TXT con conteos.
+
+- **Seguridad:**
+  - **Lista blanca y críticos:** evita terminar procesos del sistema y los definidos por el usuario.
+  - **Servicios excluidos por defecto:** reduce riesgos; activación explícita requerida.
+  - **DryRun y confirmación:** UI simple obliga selección consciente antes de actuar.
+
+- **Casos límite:**
+  - **Acceso denegado a MainModule/Owner:** manejado con try/catch; ruta/usuario pueden ser null, se sigue con criterios disponibles.
+  - **Procesos efímeros:** pueden desaparecer entre muestras; se registra Already-Exited.
+  - **Sesión 0/servicios:** filtrados a menos que IncludeServices esté activo.
+
+- **Escalabilidad:**
+  - **Ligero y portable:** solo cmdlets estándar y CIM; Out-GridView opcional.
+  - **Presets por rol:** listas blancas y umbrales ajustables por entorno (DEV/QA/PROD), integrables en tu Gestor.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - **-ConfigPath (JSON):** cargar umbrales y listas blancas por rol; ejecutar en lote con reportes consolidados.
+  - **Modo “quarantine”:** en vez de terminar, reducir prioridad/affinity y registrar seguimiento antes de matar.
+  - **Notificaciones:** enviar resumen a correo/Teams si hubo terminaciones o errores.
+  - **Kill pattern seguro:** terminar por patrón de ruta/nombre con confirmación.
+  - **Registro de árbol:** inventario de procesos hijos antes/después, para auditoría profunda.
+
+- **Siguiente paso:**
+  - Añadir `-ConfigPath` y presets por rol, más un “wizard” simple en tu UI: muestreo → selección → confirmación (DryRun recomendado) → ejecución con reporte consolidado. ¿Lo integramos en tu Gestor con perfiles DEV/QA/PROD?
+
+16. **Monitor de rendimiento:** Capturar métricas (CPU, RAM, disco, red) y alertar umbrales.
+  ## Resumen del módulo
+
+- **Propósito:** Monitorear en tiempo real rendimiento de CPU, RAM, disco y red, con alertas por umbrales, registro continuo en consola, logs en archivo, y auditoría en CSV/JSON. La ventana permanece abierta y muestra progreso en vivo.
+- **Alcance:**
+  - **Entradas:** intervalo de muestreo, duración o cantidad de muestras, umbrales por métrica, selección de adaptadores/red y discos, número de consecutivos para alertar, modo consola y persistencia de ventana.
+  - **Salidas:** log de ejecución, auditoría de muestras (CSV/JSON), resumen final (TXT), alertas en consola con detalle de métricas fuera de umbral.
+  - **Validaciones:** existencia de contadores, manejo de adaptadores/discos inexistentes, robustez ante errores transitorios de Get-Counter, idempotencia (solo lectura).
+
+## Explicación de uso
+
+### Parámetros
+
+- **IntervalSeconds / Samples / DurationMinutes:** Controlan el ritmo y la duración del monitoreo. Si `Samples=0`, se usa `DurationMinutes`.
+- **CpuHighPercent / RamHighPercent / DiskBusyHighPercent / DiskQueueHigh / NetHighMbps:** Umbrales de alerta para cada métrica.
+- **AlertOnConsecutive:** Requiere N muestras consecutivas fuera de umbral antes de alertar (reduce ruido).
+- **IncludeAdapters / ExcludeAdapters:** Selección de adaptadores de red. Por defecto se excluyen pseudo-interfaces.
+- **IncludeDisks:** Instancias específicas de PhysicalDisk (ej.: "0 C:", "1 D:"). Si se omite, usa `_Total`.
+- **ExecutionLogPath / AuditCsvPath / AuditJsonPath / SummaryReportPath:** Salidas; por defecto en `%TEMP%\PerfMonitor`.
+- **KeepWindowOpen:** Mantiene la ventana abierta al finalizar (mensaje “Presiona Enter…”).
+- **VerboseConsole:** Muestra todo en consola en tiempo real (por defecto activo).
+
+### Ejecución directa
+
+- **Monitoreo básico 5 min, consola en vivo, ventana abierta al final:**
+  ```
+  .\Monitor-Performance.ps1 -DurationMinutes 5 -IntervalSeconds 3 -KeepWindowOpen
+  ```
+- **Umbrales estrictos y adaptadores específicos:**
+  ```
+  .\Monitor-Performance.ps1 -DurationMinutes 10 -CpuHighPercent 90 -RamHighPercent 90 -NetHighMbps 200 `
+    -IncludeAdapters "Ethernet","Wi-Fi" -AlertOnConsecutive 2 -KeepWindowOpen
+  ```
+- **Discos específicos y reporte detallado:**
+  ```
+  .\Monitor-Performance.ps1 -Samples 100 -IntervalSeconds 2 -IncludeDisks "0 C:","1 D:" -DiskBusyHighPercent 85 -DiskQueueHigh 1.5 -KeepWindowOpen
+  ```
+
+### Integración en tu Gestor de Scripts Universal (UI simple)
+
+- **Controles:**
+  - **Campos:** IntervalSeconds, Samples o DurationMinutes.
+  - **Umbrales:** Cpu/Ram/Disk/Queue/Net (inputs numéricos).
+  - **Listas:** IncludeAdapters, IncludeDisks (multi-línea).
+  - **Toggles:** VerboseConsole, KeepWindowOpen.
+- **Visualización:**
+  - **Log en vivo:** tail del `ExecutionLogPath`.
+  - **Alertas:** resaltar líneas que contienen “ALERTA:” y mostrar contador de consecutivos.
+  - **Salidas:** enlaces a Audit CSV/JSON y Summary TXT.
+- **Llamada desde backend (ejemplo):**
+  ```
+  $args = @{
+    IntervalSeconds = 3
+    DurationMinutes = 5
+    CpuHighPercent = 85
+    RamHighPercent = 85
+    NetHighMbps = 100
+    KeepWindowOpen = $true
+  }
+
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Monitor-Performance.ps1",
+    "-IntervalSeconds",$args.IntervalSeconds,
+    "-DurationMinutes",$args.DurationMinutes,
+    "-CpuHighPercent",$args.CpuHighPercent,
+    "-RamHighPercent",$args.RamHighPercent,
+    "-NetHighMbps",$args.NetHighMbps,
+    $args.KeepWindowOpen ? "-KeepWindowOpen" : ""
+  )
+  ```
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - Maneja errores de `Get-Counter` y contadores no disponibles sin detener la ejecución.
+  - Usa consecutivos para evitar alertas espurias; configurable por parámetro.
+  - Calcula RAM% con TotalPhysicalMemory real, evitando suposiciones.
+  - Permite métricas por instancia de disco y por adaptador de red, manteniendo `_Total` como fallback.
+
+- **Auditoría:**
+  - Muestra cada muestra en consola y la guarda en CSV/JSON con timestamp y alertas activas.
+  - Log de ejecución con colores en tiempo real, fácil de tail en tu UI.
+  - Resumen final con máximos observados por métrica.
+
+- **Escalabilidad:**
+  - Parametrizable por perfiles (DEV/QA/PROD) con presets de umbrales y adaptadores.
+  - Ligero: solo `Get-Counter` y CIM, sin dependencias externas.
+  - Integrable en dashboard con streaming del log y gráficos en tu plataforma (si luego lo deseas).
+
+- **Seguridad:**
+  - Solo lectura de contadores y WMI; sin cambios en el sistema.
+  - Excluye pseudo-interfaces para reducir ruido (personalizable).
+
+- **Casos límite:**
+  - Sin adaptadores válidos: registra “n/a” y continúa.
+  - Contadores ausentes o sin permisos: captura excepción y muestra “n/a”.
+  - Duración vs muestras: calcula `Samples` automáticamente cuando se usa `DurationMinutes`.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - Notificaciones: enviar alerta vía correo/Teams cuando se superen umbrales X consecutivos.
+  - Persistencia circular: escribir CSV con rotación por tamaño/tiempo (para monitoreos largos).
+  - Exportar a Prometheus/Influx: endpoint o archivo en formato de métricas.
+  - Perfil de carga: medir también `\Processor Information(_Total)\Processor Frequency` y latencia de disco.
+  - Modo continuo: `-Continuous` con tecla para detener y rotación de logs por hora.
+
+- **Siguiente paso:**
+  - Añadir `-ConfigPath` para presets de umbrales y selección de adaptadores/discos por rol.
+  - Integrar alertas en tu Gestor: badge rojo/amarillo con contador de consecutivos, y botón “Ver detalle” que abre el `ExecutionLogPath`.
+  
+17. **Optimización de arranque:** Deshabilitar startups no críticos por impacto medido.
+## Resumen del módulo
+
+- **Propósito:** Detectar y medir el impacto de programas de inicio (startup) y deshabilitar, de forma segura e interactiva, los no críticos. Mide impacto en tiempo real (CPU/RAM) de los procesos asociados, registra auditoría y deja la ventana abierta mostrando progreso.
+- **Alcance:**
+  - **Entradas:** umbrales de impacto (CPU %, RAM MB), lista blanca (nombres, rutas), duración de muestreo, DryRun, confirmación por UI simple, mantener ventana abierta.
+  - **Salidas:** consola en vivo con tabla, log de ejecución, auditoría CSV/JSON, resumen TXT, respaldo de entradas deshabilitadas para rollback.
+  - **Validaciones:** no toca procesos críticos del sistema ni entradas en lista blanca, backup seguro antes de deshabilitar, idempotencia (no deshabilita dos veces lo mismo).
+
+## Explicación de uso
+
+### Parámetros
+
+- **CpuThresholdPercent / RamThresholdMB:** Umbrales para considerar una entrada de impacto High o Medium según el muestreo en vivo.
+- **SampleSeconds:** Duración del muestreo para calcular delta de CPU y RAM.
+- **WhitelistNames / WhitelistPaths:** Entradas que nunca se deshabilitan (por nombre o ruta).
+- **DryRun:** Simula el proceso de deshabilitar; igual genera auditoría y muestra en consola.
+- **KeepWindowOpen:** Mantiene la ventana abierta al finalizar con un prompt de Enter.
+- **ExecutionLogPath / AuditCsvPath / AuditJsonPath / SummaryReportPath:** Rutas de salida; se crean por defecto en %TEMP%\StartupOptimizer.
+
+### Ejecución directa
+
+- **Simulación segura con UI simple y ventana abierta:**
+  ```
+  .\Optimize-Startup.ps1 -SampleSeconds 3 -CpuThresholdPercent 10 -RamThresholdMB 200 -DryRun -KeepWindowOpen
+  ```
+- **Deshabilitar candidatos con impacto alto/medio respetando lista blanca:**
+  ```
+  .\Optimize-Startup.ps1 -CpuThresholdPercent 15 -RamThresholdMB 250 -KeepWindowOpen
+  ```
+- **Lista blanca por ruta y umbrales más estrictos:**
+  ```
+  .\Optimize-Startup.ps1 -WhitelistPaths "C:\Program Files\Vendor\App\app.exe","C:\Tools\*" -CpuThresholdPercent 20 -RamThresholdMB 300 -KeepWindowOpen
+  ```
+
+### Integración en tu Gestor de Scripts Universal (UI simple)
+
+- **Controles:**
+  - **Inputs numéricos:** CpuThresholdPercent, RamThresholdMB, SampleSeconds.
+  - **Listas:** WhitelistNames, WhitelistPaths (multi-línea).
+  - **Toggles:** DryRun, KeepWindowOpen.
+- **Visualización:**
+  - **Log en vivo:** tail de ExecutionLogPath (muestra tabla y acciones).
+  - **Acción:** al presionar “Analizar”, se listan entradas y, si procede, se abre selección (Out-GridView). Fallback consola si no está disponible.
+  - **Salidas:** enlaces a Audit CSV/JSON y Summary TXT.
+
+- **Llamada backend (ejemplo):**
+  ```
+  $args = @{
+    CpuThresholdPercent = 15
+    RamThresholdMB = 250
+    SampleSeconds = 3
+    KeepWindowOpen = $true
+  }
+  Start-Process powershell -ArgumentList @(
+    "-NoProfile","-ExecutionPolicy","Bypass","-File","Optimize-Startup.ps1",
+    "-CpuThresholdPercent",$args.CpuThresholdPercent,
+    "-RamThresholdMB",$args.RamThresholdMB,
+    "-SampleSeconds",$args.SampleSeconds,
+    $args.KeepWindowOpen ? "-KeepWindowOpen" : ""
+  ) -Wait
+  ```
+
+---
+
+## Pensamiento profundo aplicado
+
+- **Robustez:**
+  - Muestreo de CPU con delta de tiempo real para evitar lecturas instantáneas engañosas; RAM tomada del WorkingSet actual.
+  - Idempotencia al deshabilitar: evita duplicados; para Registro, respalda en RunDisabled; para carpeta, mueve a “Disabled”.
+  - Lista blanca por nombre y ruta, más entradas críticas comunes (ajustables).
+
+- **Auditoría y trazabilidad:**
+  - Cada deshabilitado registra Source y Target (clave de backup o ruta movida), con razón basada en métricas.
+  - Logs detallados en consola y archivo; resumen con conteos por acción.
+  - DryRun conserva igual auditoría, útil para revisión previa.
+
+- **Seguridad:**
+  - Rollback simple incorporado: Restore manual desde RunDisabled y carpeta Disabled.
+  - Nunca borra ejecutables ni valores sin antes crear backup; usa Remove-ItemProperty solo tras copiar al área de backup.
+  - Respeta lista blanca y evita tocar procesos del sistema típicos.
+
+- **Casos límite:**
+  - Rutas con comillas/espacios: parser tolerante para extraer ejecutable.
+  - Acceso denegado a MainModule: fallback a búsqueda por nombre y captura de errores sin detener.
+  - Entradas ya deshabilitadas: se detecta y registra como NotFound/Idempotente.
+
+- **Escalabilidad:**
+  - Parametrizable por rol (perfiles) con listas blancas distintas.
+  - Integrable en dashboards con el log en tiempo real y auditorías para comparativos entre ejecuciones.
+
+---
+
+## Extensiones recomendadas
+
+- **Mejoras opcionales:**
+  - Parámetro `-Rollback` para reactivar entradas desde RunDisabled o mover de “Disabled” a su ubicación original.
+  - `-ConfigPath` (JSON) con políticas por entorno: umbrales, listas blancas y rutas críticas por rol.
+  - Reporte comparativo: snapshot de startups antes/después y diff en CSV.
+  - Heurística de impacto extendida: medir tiempo de arranque histórico con eventos de `Diagnostics-Performance` (EventLog).
+  - Notificaciones: enviar resumen por correo/Teams cuando se deshabiliten N entradas o haya errores.
+
+- **Siguiente paso concreto:**
+  - Añadir `-Rollback` y `-ConfigPath` para gestión bidireccional (deshabilitar/rehabilitar) con presets por rol, y exponer en tu Gestor un flujo: Analizar → Seleccionar → Confirmar → Ejecutar → Resumen/Undo. ¿Quieres que lo implemente en la próxima iteración?
+
+18. **Gestión de tareas programadas:** Crear, exportar y validar tareas con triggers complejos.  
+19. **Configuración de proxy:** Definir proxy del sistema y excepciones por dominio.  
+20. **Descarga automatizada:** Fetch de archivos con reintentos, hashes y reanudación.  
+21. **Comparación de archivos:** Detectar duplicados por hash y generar informe.  
+22. **Ordenar biblioteca:** Renombrar y clasificar documentos/media según metadatos.  
+23. **Extracción de metadatos:** Leer EXIF/PDF/DOCX y exportar a base de datos.  
+24. **Compresión inteligente:** Zip por lote con reglas de exclusión y estructura.  
+25. **Descompresión masiva:** Extraer múltiples archivos preservando jerarquías.  
+26. **Plantillas de proyectos:** Generar estructura estándar con README y scripts base.  
+27. **Gestión de hosts:** Añadir/quitar entradas en hosts con registro de cambios.  
+28. **DNS flush y pruebas:** Limpiar caché y validar resolución para dominios clave.  
+29. **Ping y conectividad:** Comprobar latencia, pérdida y trazar rutas con reporte.  
+30. **Pruebas de puertos:** Escanear puertos locales/remotos y validar servicios activos.  
+31. **Configuración de NTP:** Sincronizar hora y verificar drift y última fuente.  
+32. **Instalar fuentes:** Copiar y registrar tipografías con verificación en el sistema.  
+33. **Gestión de impresoras:** Agregar colas, drivers y establecer impresora predeterminada.  
+34. **Política de energía:** Ajustar planes y desactivar suspensión para tareas críticas.  
+35. **Gestión de certificados:** Importar/exportar, renovar y validar cadenas de confianza.  
+36. **Firma de scripts:** Firmar .ps1 y aplicar ExecutionPolicy seguro por ámbito.  
+37. **Control de ExecutionPolicy:** Establecer por usuario/máquina y auditar excepciones.  
+38. **UI de instalación:** WinForms/WPF para instaladores con progreso y logs.  
+39. **Selector de iconos:** Asignar iconos dinámicos a accesos directos según estado.  
+40. **Menú de acciones rápidas:** Lanzador universal para tareas y scripts paralelos.  
+41. **Colas y paralelismo:** Ejecutar jobs en paralelo con límites y cancelación segura.  
+42. **Gestión de credenciales:** Guardar en CredentialManager o DPAPI con rotación.  
+43. **Encriptación de archivos:** Proteger datos sensibles con AES y claves por entorno.  
+44. **Scraping liviano:** Extraer datos de páginas y generar reportes CSV.  
+45. **Notificaciones toast:** Alertas visuales con íconos y niveles de severidad.  
+46. **Email automatizado:** Enviar informes con adjuntos, plantillas y DKIM opcional.  
+47. **Webhook dispatcher:** Publicar eventos a endpoints (Slack, Teams, Discord).  
+48. **REST API client:** CRUD contra APIs con autenticación y manejo de errores.  
+49. **Generación de documentación:** Crear Markdown/HTML desde metadatos de scripts.  
+50. **Changelog automático:** Construir notas de versión desde commits o diffs.  
+51. **Gestión de perfiles PowerShell:** Inicializar módulos, aliases y temas por rol.  
+52. **Instalación de módulos:** Resolver dependencias con PSGallery y fuentes privadas.  
+53. **Pruebas Pester:** Ejecutar tests unitarios y publicar resultados.  
+54. **Linting de código:** Validar estilo y seguridad con reglas personalizadas.  
+55. **Plantillas de UI:** Aplicar paletas, tipografías e íconos coherentes a WinForms.  
+56. **Tema claro/oscuro:** Toggle de tema con persistencia y contraste accesible.  
+57. **Logs estructurados:** Salida JSON con correlación de operación e ID de sesión.  
+58. **Gestión de errores:** Try/catch centralizado con reintentos y circuit breaker.  
+59. **Feature flags:** Activar funciones por entorno o usuario con toggles persistentes.  
+60. **Perfilado de rendimiento:** Medir tiempo por bloque y generar flame-like report.  
+61. **Cálculo de hashes:** MD5/SHA256 para verificación de integridad en lote.  
+62. **Control de versiones de archivos:** Guardar snapshots y diffs con metadatos.  
+63. **Renombrado masivo:** Reglas por patrón, numeración y normalización de caracteres.  
+64. **Conversión de formatos:** CSV↔JSON↔XML con validación de esquema.  
+65. **Parsing de logs:** Extraer eventos clave y agregaciones con expresiones regulares.  
+66. **Auditoría de permisos:** Listar ACL y detectar herencias peligrosas.  
+67. **Corrección de ACL:** Aplicar plantillas de permisos por carpeta/proyecto.  
+68. **Bloqueo de dispositivos USB:** Políticas de acceso por ID y excepciones.  
+69. **Monitoreo de eventos:** Suscripción a EventLog y alertas en tiempo real.  
+70. **Health check de apps:** Validar procesos, puertos y archivos de configuración.  
+71. **Instalador portable:** Empaquetar binarios con rutas relativas e iconos.  
+72. **Desinstalación limpia:** Remover apps y residuos (carpetas, servicios, tareas).  
+73. **Provisioning de máquina nueva:** Secuencia completa de drivers, apps y ajustes.  
+74. **Reset de red:** Renovar IP, limpiar stack y reconfigurar adaptadores.  
+75. **Política de actualizaciones:** Pausar, programar y forzar Windows Update con reportes.  
+76. **Telemetría local:** Recoger métricas de uso y enviar a un endpoint interno.  
+77. **Gestión de sesiones RDP:** Habilitar, auditar y cerrar sesiones inactivas.  
+78. **Control de puertos USB serie:** Detectar y mapear COM para dispositivos específicos.  
+79. **Gestión de SQLite:** CRUD local para catálogos y configuraciones portables.  
+80. **Plantillas de accesos directos:** Crear LNK/URL con iconos, argumentos y scope.  
+81. **Validador de enlaces:** Comprobar disponibilidad de URLs y reportar rotos.  
+82. **Generación de QR:** Crear códigos para enlaces, Wi-Fi o configuración rápida.  
+83. **Catálogo de iconos:** Previsualizar packs y asignar por categoría o estado.  
+84. **Buscador universal:** Indexar rutas y ejecutar acciones con fuzzy search.  
+85. **Gestión de perfiles de Git:** Config global/local, SSH y firma de commits.  
+86. **Build pipeline local:** Compilar, testear y empaquetar proyectos con pasos orquestados.  
+87. **Distribución por lotes:** Copiar apps a múltiples máquinas con validación remota.  
+88. **Remoting seguro:** Ejecutar tareas en equipos remotos con credenciales rotadas.  
+89. **Generación de reportes ejecutivos:** Resúmenes gráficos (HTML) de estado y progreso.  
+90. **Control de calidad de datos:** Validar esquemas y reglas antes de importar/exportar.  
+91. **Normalización de nombres:** Quitar acentos, espacios y símbolos para compatibilidad.  
+92. **Gestión de caché de build:** Reusar artefactos si hashes coinciden.  
+93. **Simulación de fallos:** Probar resiliencia de scripts bajo errores controlados.  
+94. **Auto-actualización de scripts:** Chequear releases y actualizar .ps1 con firma.  
+95. **Módulo de utilidades comunes:** Librería compartida para logs, errores y UI.  
+96. **Wizard de configuración:** Paso a paso con validaciones y previsualización.  
+97. **Control de versiones semánticas:** Incremento automático de MAJOR/MINOR/PATCH.  
+98. **Plantillas de documentación UI:** Capturas, paletas y justificación de diseño.  
+99. **Orquestación paralela segura:** Jobs con aislamiento, timeouts y reintentos por tarea.  
+100. **Distribución con branding:** Generar instaladores y lanzadores con identidad visual consistente.
+
+# Gestor de Scripts Universal
+
+Actualmente este repositorio contiene **17 herramientas funcionales** en formato `.ps1`, ya organizadas por categorías (instalación, seguridad, red, backup, UI, etc.).
+
+🚧 **Estado del proyecto:**  
+Aún faltan **83 herramientas adicionales** que se encuentran en desarrollo. Todas ellas también estarán implementadas como scripts `.ps1`, siguiendo la misma estructura modular y escalable.
+
+🔓 **Licencia y filosofía:**  
+Este software será de **código libre**, con el objetivo de que cualquier persona pueda revisarlo, adaptarlo y mejorarlo. La idea es construir un ecosistema abierto, auditable y en constante evolución.
+
+---

@@ -1,0 +1,118 @@
+Scripts/
+│
+├── 01_Instalación_y_Actualización
+│   ├── Instalación silenciosa de apps.ps1
+│   ├── Actualización de software.ps1
+│   ├── Instalador portable.ps1
+│   ├── Desinstalación limpia.ps1
+│   ├── Distribución por lotes.ps1
+│   ├── Distribución con branding.ps1
+│   ├── Auto-actualización de scripts.ps1
+│   └── Provisioning de máquina nueva.ps1
+│
+├── 02_Sistema_y_Seguridad
+│   ├── Hardening de Windows.ps1
+│   ├── Políticas de firewall.ps1
+│   ├── Control de ExecutionPolicy.ps1
+│   ├── Firma de scripts.ps1
+│   ├── Gestión de certificados.ps1
+│   ├── Auditoría de permisos.ps1
+│   ├── Corrección de ACL.ps1
+│   ├── Bloqueo de dispositivos USB.ps1
+│   ├── Control de puertos USB serie.ps1
+│   └── Gestión de credenciales.ps1
+│
+├── 03_Usuarios_y_Perfiles
+│   ├── Creación de usuarios locales.ps1
+│   ├── Gestión de perfiles PowerShell.ps1
+│   ├── Gestión de perfiles de Git.ps1
+│   └── Gestión de sesiones RDP.ps1
+│
+├── 04_Red_y_Conectividad
+│   ├── Configuración de proxy.ps1
+│   ├── DNS flush y pruebas.ps1
+│   ├── Ping y conectividad.ps1
+│   ├── Pruebas de puertos.ps1
+│   ├── Configuración de NTP.ps1
+│   ├── Reset de red.ps1
+│   └── Remoting seguro.ps1
+│
+├── 05_Almacenamiento_y_Backup
+│   ├── Inventario de hardware.ps1
+│   ├── Inventario de software.ps1
+│   ├── Mapeo de unidades.ps1
+│   ├── Sincronización de carpetas.ps1
+│   ├── Backup incremental.ps1
+│   ├── Restauración rápida.ps1
+│   ├── Rotación de logs.ps1
+│   ├── Parsing de logs.ps1
+│   └── Gestión de caché de build.ps1
+│
+├── 06_Mantenimiento_y_Optimización
+│   ├── Limpieza de cachés.ps1
+│   ├── Optimización de arranque.ps1
+│   ├── Gestión de procesos.ps1
+│   ├── Monitor de rendimiento.ps1
+│   ├── Health check de apps.ps1
+│   ├── Política de energía.ps1
+│   ├── Política de actualizaciones.ps1
+│   └── Telemetría local.ps1
+│
+├── 07_Archivos_y_Formatos
+│   ├── Comparación de archivos.ps1
+│   ├── Ordenar biblioteca.ps1
+│   ├── Extracción de metadatos.ps1
+│   ├── Compresión inteligente.ps1
+│   ├── Descompresión masiva.ps1
+│   ├── Renombrado masivo.ps1
+│   ├── Conversión de formatos.ps1
+│   ├── Cálculo de hashes.ps1
+│   ├── Control de versiones de archivos.ps1
+│   ├── Normalización de nombres.ps1
+│   └── Gestión de SQLite.ps1
+│
+├── 08_UI_y_Experiencia
+│   ├── UI de instalación.ps1
+│   ├── Selector de iconos.ps1
+│   ├── Menú de acciones rápidas.ps1
+│   ├── Plantillas de UI.ps1
+│   ├── Tema claro-oscuro.ps1
+│   ├── Notificaciones toast.ps1
+│   ├── Wizard de configuración.ps1
+│   ├── Plantillas de accesos directos.ps1
+│   ├── Catálogo de iconos.ps1
+│   └── Plantillas de documentación UI.ps1
+│
+├── 09_Integraciones_y_Comunicación
+│   ├── Email automatizado.ps1
+│   ├── Webhook dispatcher.ps1
+│   ├── REST API client.ps1
+│   ├── Scraping liviano.ps1
+│   ├── Validador de enlaces.ps1
+│   ├── Generación de QR.ps1
+│   └── Buscador universal.ps1
+│
+├── 10_DevOps_y_Automatización
+│   ├── Instalación de módulos.ps1
+│   ├── Pruebas Pester.ps1
+│   ├── Linting de código.ps1
+│   ├── Build pipeline local.ps1
+│   ├── Control de versiones semánticas.ps1
+│   ├── Feature flags.ps1
+│   ├── Simulación de fallos.ps1
+│   ├── Orquestación paralela segura.ps1
+│   └── Colas y paralelismo.ps1
+│
+├── 11_Documentación_y_Reportes
+│   ├── Generación de documentación.ps1
+│   ├── Changelog automático.ps1
+│   ├── Generación de reportes ejecutivos.ps1
+│   └── Logs estructurados.ps1
+│
+├── 12_Utilidades_Comunes
+│   ├── Gestión de errores.ps1
+│   ├── Perfilado de rendimiento.ps1
+│   ├── Módulo de utilidades comunes.ps1
+│   └── Plantillas de proyectos.ps1
+│
+└── README.md   ← índice maestro con categorías y descripciones
