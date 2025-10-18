@@ -16,28 +16,37 @@ param(
 
 # --- Garantizar STA ---
 if ([System.Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
-  $argsList = @()
-  if ($OutputPath)         { $argsList += "-OutputPath `"$OutputPath`"" }
-  if ($IncludePerDeviceCSV){ $argsList += "-IncludePerDeviceCSV" }
-  if ($Tag)                { $argsList += "-Tag `"$Tag`"" }
-  if ($LogPath)            { $argsList += "-LogPath `"$LogPath`"" }
-  if ($RefreshSeconds)     { $argsList += "-RefreshSeconds $RefreshSeconds" }
+  $argsList = @("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", "`"$PSCommandPath`"")
+
+  if ($OutputPath)          { $argsList += "-OutputPath";         $argsList += "`"$OutputPath`"" }
+  if ($IncludePerDeviceCSV) { $argsList += "-IncludePerDeviceCSV" }
+  if ($Tag)                 { $argsList += "-Tag";                $argsList += "`"$Tag`"" }
+  if ($LogPath)             { $argsList += "-LogPath";            $argsList += "`"$LogPath`"" }
+  if ($RefreshSeconds)      { $argsList += "-RefreshSeconds";     $argsList += "$RefreshSeconds" }
+
   $exe = (Get-Command powershell).Source
-  $file = $PSCommandPath
-  if (-not $file) { throw "Ejecuta desde archivo o usa: powershell -STA -File .\HardwareInventoryRealtimeCharts.ps1" }
-  Start-Process -FilePath $exe -ArgumentList @("-NoLogo","-NoProfile","-STA","-File","`"$file`"", $argsList) -WindowStyle Normal
+  Start-Process -FilePath $exe -ArgumentList $argsList -WindowStyle Normal
   return
 }
 
 # --- Dependencias WPF + Charts ---
-Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-Add-Type -AssemblyName WindowsFormsIntegration
-Add-Type -AssemblyName System.Windows.Forms
-# Cargar el ensamblado del Charting (puede requerir .NET Framework instalado)
-Add-Type -AssemblyName System.Windows.Forms.DataVisualization
+try {
+  Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
+  Add-Type -AssemblyName WindowsFormsIntegration
+  Add-Type -AssemblyName System.Windows.Forms
+  Add-Type -AssemblyName System.Windows.Forms.DataVisualization
+} catch {
+  Write-Host "Error cargando ensamblados WPF/Charting: $($_.Exception.Message)" -ForegroundColor Red
+  exit
+}
 
 # --- Preparación de carpetas y estado ---
-foreach ($p in @($OutputPath, $LogPath)) { if (!(Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
+foreach ($p in @($OutputPath, $LogPath)) {
+  if (-not (Test-Path $p)) {
+    New-Item -ItemType Directory -Path $p -Force | Out-Null
+  }
+}
+
 $TimeStamp   = Get-Date -Format "yyyyMMdd_HHmmss"
 $SnapshotDir = Join-Path $OutputPath "Snapshot_$TimeStamp"
 New-Item -ItemType Directory -Path $SnapshotDir -Force | Out-Null
@@ -45,21 +54,35 @@ $LogFile     = Join-Path $LogPath "HWInventory_$TimeStamp.log"
 $SummaryJson = Join-Path $SnapshotDir "summary.json"
 $SummaryCsv  = Join-Path $SnapshotDir "summary.csv"
 
-function Write-Log { param([string]$Message, [string]$Level = "INFO")
+function Write-Log {
+  param([string]$Message, [string]$Level = "INFO")
   $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Level] $Message"
   Add-Content -Path $LogFile -Value $line
-  $color = switch ($Level) { "ERROR" { "Red" } "WARN" { "Yellow" } default { "Green" } }
+  $color = switch ($Level) {
+    "ERROR" { "Red" }
+    "WARN"  { "Yellow" }
+    default { "Green" }
+  }
   Write-Host $line -ForegroundColor $color
 }
 
-function Try-Cim { param([string]$Class)
-  try { Get-CimInstance -ClassName $Class -ErrorAction Stop }
-  catch {
-    Write-Log "Fallo CIM $Class. Probando WMI..." "WARN"
-    try { Get-WmiObject -Class $Class -ErrorAction Stop }
-    catch { Write-Log "Fallo WMI $Class: $($_.Exception.Message)" "ERROR"; @() }
+function Try-Cim {
+  param([string]$Class)
+  try {
+    Get-CimInstance -ClassName $Class -ErrorAction Stop
+  } catch {
+    Write-Log "Fallo CIM ${Class}. Probando WMI..." "WARN"
+    try {
+      Get-WmiObject -Class $Class -ErrorAction Stop
+    } catch {
+      $msg = $_.Exception.Message
+      Write-Log "Fallo WMI ${Class}: $msg" "ERROR"
+      @()
+    }
   }
 }
+
+
 
 $State = [pscustomobject]@{
   Tag         = $Tag
@@ -570,15 +593,35 @@ function Export-All {
 }
 
 # --- Eventos UI ---
-$FilterBox.Add_TextChanged({ $State.FilterText = $FilterBox.Text; Apply-Filter })
-$Tabs.Add_SelectionChanged({ Apply-Filter })
-$ExportAllBtn.Add_Click({ Export-All })
-$OpenFolderBtn.Add_Click({ try { Start-Process explorer.exe $State.SnapshotDir } catch {} })
+$FilterBox.Add_TextChanged({
+  $State.FilterText = $FilterBox.Text
+  Apply-Filter
+})
+
+$Tabs.Add_SelectionChanged({
+  Apply-Filter
+})
+
+$ExportAllBtn.Add_Click({
+  Export-All
+})
+
+$OpenFolderBtn.Add_Click({
+  try {
+    Start-Process explorer.exe $State.SnapshotDir
+  } catch {}
+})
+
 $PauseResumeBtn.Add_Click({
   $State.Paused = -not $State.Paused
-  $PauseResumeBtn.Content = ($State.Paused ? 'Continuar' : 'Pausar')
+  if ($State.Paused) {
+    $PauseResumeBtn.Content = 'Continuar'
+  } else {
+    $PauseResumeBtn.Content = 'Pausar'
+  }
   $StatusText.Text = "Última actualización: $(Get-Date -Format 'HH:mm:ss') | Intervalo: $($State.IntervalSec)s | Pausado: $($State.Paused)"
 })
+
 $IntervalSlider.Add_ValueChanged({
   $State.IntervalSec = [int]$IntervalSlider.Value
   $IntervalValue.Text = "$($State.IntervalSec)s"
