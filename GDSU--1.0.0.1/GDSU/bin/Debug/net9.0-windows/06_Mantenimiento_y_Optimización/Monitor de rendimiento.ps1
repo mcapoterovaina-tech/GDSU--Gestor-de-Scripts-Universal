@@ -1,273 +1,306 @@
-<#
+<# 
 .SYNOPSIS
-  Monitor de rendimiento: captura métricas (CPU, RAM, disco, red) y alerta por umbrales, con consola en vivo.
+  UI de procesos en tiempo real: CPU%, RAM, I/O y acciones seguras (Kill), con búsqueda y resaltado por umbral.
 
 .DESCRIPTION
-  - Mide periódicamente CPU %, RAM %, Disco (% Disk Time y Avg. Queue Length) y Red (Mbps por adaptador).
-  - Muestra progreso en tiempo real en consola y mantiene la ventana abierta al finalizar.
-  - Genera auditoría CSV/JSON con cada muestra y un resumen final TXT.
-  - Umbrales configurables con alertas después de N consecutivos para evitar ruido.
+  - Mide periódicamente CPU% por proceso (delta de TotalProcessorTime) y RAM (WorkingSet).
+  - Calcula I/O Read/Write bytes/sec por proceso usando deltas.
+  - Muestra DataGrid WPF con orden, filtro, y color por umbrales.
+  - Incluye acciones: Refresh inmediato y Kill con confirmación.
+  - Diseñado para integrarse con tu monitor existente (intervalo y umbrales compartidos).
+
+.NOTES
+  - Red por proceso es limitada en PowerShell sin ETW; se expone "I/O Total Bps" como proxy de actividad.
+  - Requiere PowerShell 5+ y .NET WPF disponible (Windows).
 #>
 
 [CmdletBinding()]
 param(
-  [int]$IntervalSeconds = 3,                           # intervalo de muestreo
-  [int]$Samples = 0,                                   # cantidad de muestras; si 0, usa DurationMinutes
-  [int]$DurationMinutes = 5,                           # duración total si Samples=0
-
-  [int]$CpuHighPercent = 85,                           # umbral alto CPU %
-  [int]$RamHighPercent = 85,                           # umbral alto RAM %
-  [int]$DiskBusyHighPercent = 80,                      # umbral alto % Disk Time
-  [double]$DiskQueueHigh = 2.0,                        # umbral alto cola promedio
-  [double]$NetHighMbps = 100.0,                        # umbral por adaptador (Mbps)
-
-  [int]$AlertOnConsecutive = 3,                        # n muestras consecutivas antes de alertar
-
-  [string[]]$IncludeAdapters = @(),                    # nombres exactos de adaptadores a incluir; vacío = todos
-  [string[]]$ExcludeAdapters = @("isatap*","Teredo*"), # excluir pseudo-interfaces comunes
-  [string[]]$IncludeDisks = @(),                       # instancias disco (ej. "0 C:", "1 D:"); vacío = _Total
-
-  [string]$ExecutionLogPath,                           # log de consola
-  [string]$AuditCsvPath,                               # CSV con muestras
-  [string]$AuditJsonPath,                              # JSON con muestras
-  [string]$SummaryReportPath,                          # TXT resumen
-
-  [switch]$KeepWindowOpen,                             # mantener ventana abierta al finalizar
-  [switch]$VerboseConsole = $true                      # mostrar en consola siempre (por defecto)
+  [int]$IntervalSeconds = 2,
+  [double]$CpuHighPercent = 50.0,
+  [int]$RamHighMB = 500,              # WorkingSet alto, en MB
+  [double]$IoHighBps = 5MB,           # umbral alto para Read+Write bytes/sec
+  [int]$AlertOnConsecutive = 3,       # consecutivos para resaltar fuerte
+  [switch]$TopByCPU,                  # si se activa, ordena por CPU desc en cada tick
+  [switch]$VerboseConsole
 )
 
 begin {
-  # Preparación de rutas
-  $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-  $defaultDir = Join-Path $env:TEMP "PerfMonitor"
-  if (-not (Test-Path -LiteralPath $defaultDir)) { New-Item -ItemType Directory -Path $defaultDir -Force | Out-Null }
-  if (-not $ExecutionLogPath)  { $ExecutionLogPath  = Join-Path $defaultDir "perf_$timestamp.log" }
-  if (-not $AuditCsvPath)      { $AuditCsvPath      = Join-Path $defaultDir "perf_$timestamp.csv" }
-  if (-not $AuditJsonPath)     { $AuditJsonPath     = Join-Path $defaultDir "perf_$timestamp.json" }
-  if (-not $SummaryReportPath) { $SummaryReportPath = Join-Path $defaultDir "summary_$timestamp.txt" }
+  # Cargar WPF
+  Add-Type -AssemblyName PresentationFramework
+  Add-Type -AssemblyName PresentationCore
+  Add-Type -AssemblyName WindowsBase
 
-  # Utilidades
-  function Write-Log {
-    param([string]$Message, [ConsoleColor]$Color = [ConsoleColor]::Gray)
-    $ts = (Get-Date).ToString("HH:mm:ss")
-    $line = "[$ts] $Message"
-    if ($VerboseConsole) {
-      $orig = $Host.UI.RawUI.ForegroundColor
-      $Host.UI.RawUI.ForegroundColor = $Color
-      Write-Host $line
-      $Host.UI.RawUI.ForegroundColor = $orig
-    }
-    Add-Content -LiteralPath $ExecutionLogPath -Value $line
+  # Núcleos lógicos para CPU%
+  $LogicalProcs = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+  if (-not $LogicalProcs) { $LogicalProcs = 1 }
+
+  # Estado previo para deltas
+  $prev = @{}
+  $consec = @{}  # consecutive highs per PID
+
+  # XAML UI
+  $xaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Process Monitor - Live" Height="640" Width="1000" WindowStartupLocation="CenterScreen" Background="#0F1115">
+  <Window.Resources>
+    <Style TargetType="DataGridRow">
+      <Style.Triggers>
+        <!-- Soft highlight on CPU -->
+        <DataTrigger Binding="{Binding CPUPercent}" Value="{x:Static sys:Double.NaN}">
+          <Setter Property="Background" Value="#22262e"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding CPUPercent}" Value="0">
+          <Setter Property="Background" Value="#1a1d24"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="Margin" Value="4"/>
+      <Setter Property="Padding" Value="6,3"/>
+      <Setter Property="Foreground" Value="#e6e6e6"/>
+      <Setter Property="Background" Value="#2b3038"/>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Margin" Value="4"/>
+      <Setter Property="Foreground" Value="#e6e6e6"/>
+      <Setter Property="Background" Value="#1c2026"/>
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Margin" Value="4"/>
+      <Setter Property="Foreground" Value="#e6e6e6"/>
+      <Setter Property="Background" Value="#1c2026"/>
+    </Style>
+  </Window.Resources>
+  <Grid Margin="10">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <DockPanel Grid.Row="0" Margin="0,0,0,10">
+      <TextBlock Text="Process Monitor" FontSize="18" FontWeight="Bold" Foreground="#e6e6e6" Margin="4"/>
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+        <TextBlock Text="Search:" Foreground="#cfcfcf" Margin="10,0,4,0"/>
+        <TextBox x:Name="SearchBox" Width="220" ToolTip="Filtra por nombre de proceso"/>
+        <Button x:Name="RefreshBtn" Content="Refresh"/>
+        <Button x:Name="KillBtn" Content="Kill Selected" Background="#8a2b2b"/>
+      </StackPanel>
+    </DockPanel>
+
+    <!-- DataGrid -->
+    <DataGrid x:Name="Grid" Grid.Row="1" AutoGenerateColumns="False" CanUserSortColumns="True"
+              HeadersVisibility="Column" Background="#151821" Foreground="#e6e6e6"
+              GridLinesVisibility="None" RowBackground="#1a1d24" AlternatingRowBackground="#13161d"
+              SelectionMode="Extended" SelectionUnit="FullRow">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="PID" Binding="{Binding PID}" Width="70"/>
+        <DataGridTextColumn Header="Process" Binding="{Binding Name}" Width="180"/>
+        <DataGridTextColumn Header="CPU %" Binding="{Binding CPUPercent, StringFormat={}{0:F1}}" Width="80"/>
+        <DataGridTextColumn Header="RAM MB" Binding="{Binding RAMMB, StringFormat={}{0:F0}}" Width="90"/>
+        <DataGridTextColumn Header="Handles" Binding="{Binding Handles}" Width="90"/>
+        <DataGridTextColumn Header="IO Read/s" Binding="{Binding ReadBpsFmt}" Width="110"/>
+        <DataGridTextColumn Header="IO Write/s" Binding="{Binding WriteBpsFmt}" Width="110"/>
+        <DataGridTextColumn Header="IO Total/s" Binding="{Binding TotalBpsFmt}" Width="110"/>
+        <DataGridTextColumn Header="User" Binding="{Binding User}" Width="160"/>
+        <DataGridTextColumn Header="Path" Binding="{Binding Path}" Width="*" />
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <!-- Status bar -->
+    <DockPanel Grid.Row="2" Margin="0,10,0,0">
+      <TextBlock x:Name="StatusText" Foreground="#cfcfcf" />
+      <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+        <TextBlock x:Name="CpuText" Foreground="#cfcfcf" Margin="10,0,10,0"/>
+        <TextBlock x:Name="RamText" Foreground="#cfcfcf" Margin="10,0,10,0"/>
+        <TextBlock x:Name="NetText" Foreground="#cfcfcf" Margin="10,0,10,0"/>
+      </StackPanel>
+    </DockPanel>
+  </Grid>
+</Window>
+"@
+
+  # Inject sys namespace
+  $xaml = $xaml -replace 'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"', 'xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=mscorlib"'
+  $reader = (New-Object System.Xml.XmlNodeReader ([xml]$xaml))
+  $window = [Windows.Markup.XamlReader]::Load($reader)
+
+  # Element refs
+  $Grid       = $window.FindName('Grid')
+  $SearchBox  = $window.FindName('SearchBox')
+  $RefreshBtn = $window.FindName('RefreshBtn')
+  $KillBtn    = $window.FindName('KillBtn')
+  $StatusText = $window.FindName('StatusText')
+  $CpuText    = $window.FindName('CpuText')
+  $RamText    = $window.FindName('RamText')
+  $NetText    = $window.FindName('NetText')
+
+  # Observable collection
+  $obsType = [System.Collections.ObjectModel.ObservableCollection[object]]
+  $Items = New-Object $obsType
+  $Grid.ItemsSource = $Items
+
+  # Helpers
+  function Format-Bps([double]$v) {
+    if ($v -lt 1KB) { "{0:F0} B/s" -f $v }
+    elseif ($v -lt 1MB) { "{0:F1} KB/s" -f ($v/1KB) }
+    elseif ($v -lt 1GB) { "{0:F2} MB/s" -f ($v/1MB) }
+    else { "{0:F2} GB/s" -f ($v/1GB) }
   }
 
-  function Get-TotalRAM {
+  function Get-Owner($pid) {
     try {
-      $cs = Get-CimInstance Win32_ComputerSystem
-      return [int64]$cs.TotalPhysicalMemory
-    } catch {
-      return $null
-    }
+      $p = Get-CimInstance Win32_Process -Filter "ProcessId=$pid"
+      $res = $p.GetOwner()
+      if ($res.ReturnValue -eq 0) { return "$($res.Domain)\$($res.User)" }
+    } catch {}
+    return ""
   }
 
-  function Get-Adapters {
-    # Nombres que Get-Counter expone como instancias en \Network Interface(*)
+  # System-level metrics
+  function Get-SystemMetrics {
     try {
-      $raw = (Get-Counter -ListSet 'Network Interface' -ErrorAction Stop).CounterSetName
-      $inst = (Get-Counter -Counter '\Network Interface(*)\Bytes Total/sec' -ErrorAction Stop).CounterSamples |
-        Select-Object -ExpandProperty InstanceName | Sort-Object -Unique
-      # Filtrar
-      $list = @()
-      foreach ($a in $inst) {
-        if ($ExcludeAdapters | Where-Object { $a -like $_ }) { continue }
-        if ($IncludeAdapters.Count -gt 0 -and -not ($IncludeAdapters | Where-Object { $a -like $_ })) { continue }
-        $list += $a
-      }
-      return $list
-    } catch { return @() }
+      $cpuTotal = (Get-Counter '\Processor(_Total)\% Processor Time' -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue
+    } catch { $cpuTotal = [double]::NaN }
+    try {
+      $memAvailMB = (Get-Counter '\Memory\Available MBytes' -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue
+      $totalRAM = (Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1MB
+      $ramPct = if ($totalRAM -gt 0) { [math]::Round((1 - ($memAvailMB/$totalRAM))*100,1) } else { [double]::NaN }
+    } catch { $ramPct = [double]::NaN }
+    try {
+      $netBps = (Get-Counter '\Network Interface(*)\Bytes Total/sec' -SampleInterval 1 -MaxSamples 1).CounterSamples |
+        Measure-Object -Property CookedValue -Sum | Select-Object -ExpandProperty Sum
+    } catch { $netBps = [double]::NaN }
+    [pscustomobject]@{ CpuTotal=$cpuTotal; RamPercent=$ramPct; NetBps=$netBps }
   }
 
-  # Auditoría
-  $Audit = New-Object System.Collections.Generic.List[Object]
+  # Sampling loop
+  $lastSample = Get-Date
+  function Sample-Processes {
+    $now = Get-Date
+    $dt = ($now - $lastSample).TotalSeconds
+    if ($dt -lt 0.5) { return } # avoid too frequent
+    $lastSample = $now
 
-  # Mapeo de consecutivos para alertas
-  $Consec = @{
-    CPU  = 0
-    RAM  = 0
-    Disk = 0
-    Queue= 0
-  }
-  $ConsecNet = @{}  # por adaptador
+    # Collect processes
+    $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Id -gt 0 }
+    $newItems = @()
 
-  # Plan de muestreo
-  if ($Samples -le 0) {
-    $totalSeconds = [int]([math]::Max(1, $DurationMinutes)) * 60
-    $Samples = [int][math]::Ceiling($totalSeconds / [math]::Max(1, $IntervalSeconds))
-  }
-
-  # Info inicial
-  $hostName = $env:COMPUTERNAME
-  $totalRAM = Get-TotalRAM
-  Write-Log "Inicio monitor: Host=$hostName | Interval=$IntervalSeconds s | Samples=$Samples | Logs: $ExecutionLogPath" ([ConsoleColor]::Cyan)
-  if ($totalRAM) { Write-Log ("RAM total: {0:N0} MB" -f ($totalRAM/1MB)) ([ConsoleColor]::DarkCyan) }
-
-  # Precompilar contadores
-  $cpuCounter   = '\Processor(_Total)\% Processor Time'
-  $ramCounter   = '\Memory\Available MBytes'
-  $diskBusyC    = '\PhysicalDisk(_Total)\% Disk Time'
-  $diskQueueC   = '\PhysicalDisk(_Total)\Avg. Disk Queue Length'
-  $netCounter   = '\Network Interface(*)\Bytes Total/sec'
-
-  $Adapters = Get-Adapters
-  foreach ($a in $Adapters) { if (-not $ConsecNet.ContainsKey($a)) { $ConsecNet[$a] = 0 } }
-
-  # Disco por instancia (opcional)
-  $DiskInstances = @()
-  if ($IncludeDisks.Count -gt 0) {
-    foreach ($di in $IncludeDisks) {
-      $DiskInstances += @{
-        Busy = "\\PhysicalDisk($di)\\% Disk Time"
-        Queue= "\\PhysicalDisk($di)\\Avg. Disk Queue Length"
-        Name = $di
-      }
-    }
-  }
-
-  # CSV header (se creará al final por Export-Csv; mantenemos datos en memoria)
-}
-
-process {
-  try {
-    for ($i = 1; $i -le $Samples; $i++) {
-      $t0 = Get-Date
-
-      # CPU
-      $cpu = $null
-      try { $cpu = (Get-Counter -Counter $cpuCounter -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue } catch { $cpu = $null }
-
-      # RAM %
-      $ramPct = $null
-      try {
-        $availMB = (Get-Counter -Counter $ramCounter -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue
-        if ($totalRAM) {
-          $ramPct = [math]::Round((1 - (($availMB*1MB)/$totalRAM)) * 100, 2)
+    foreach ($p in $procs) {
+      $pid = $p.Id
+      $name = $p.ProcessName
+      $wsMB = [math]::Round($p.WorkingSet64/1MB,1)
+      $handles = $p.Handles
+      $path = ""
+      try { $path = $p.Path } catch {}
+      $owner = ""
+      if (-not $prev.ContainsKey($pid)) {
+        $prev[$pid] = [pscustomobject]@{
+          CpuTotalSec = $p.TotalProcessorTime.TotalSeconds
+          ReadBytes   = $p.ReadTransferCount
+          WriteBytes  = $p.WriteTransferCount
+          Updated     = $now
         }
-      } catch { $ramPct = $null }
-
-      # Disco (_Total o instancias)
-      $diskBusy = $null; $diskQueue = $null
-      try { $diskBusy = (Get-Counter -Counter $diskBusyC -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue } catch { $diskBusy = $null }
-      try { $diskQueue = (Get-Counter -Counter $diskQueueC -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue } catch { $diskQueue = $null }
-
-      $diskInstMetrics = @()
-      foreach ($di in $DiskInstances) {
-        $busyI = $null; $queueI = $null
-        try { $busyI  = (Get-Counter -Counter $di.Busy -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue } catch { }
-        try { $queueI = (Get-Counter -Counter $di.Queue -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue } catch { }
-        $diskInstMetrics += [pscustomobject]@{ Name=$di.Name; Busy=$busyI; Queue=$queueI }
+        $consec[$pid] = [pscustomobject]@{ CPU=0; RAM=0; IO=0 }
       }
 
-      # Red por adaptador
-      $netPerAdapter = @()
-      foreach ($a in $Adapters) {
-        $bps = $null
-        try {
-          $val = (Get-Counter -Counter "\\Network Interface($a)\\Bytes Total/sec" -SampleInterval 1 -MaxSamples 1).CounterSamples[0].CookedValue
-          $bps = [double]$val
-        } catch { }
-        $mbps = if ($bps -ne $null) { [math]::Round(($bps * 8) / 1MB, 2) } else { $null }
-        $netPerAdapter += [pscustomobject]@{ Adapter=$a; Mbps=$mbps }
+      $pr = $prev[$pid]
+
+      # CPU delta
+      $cpuSec = $p.TotalProcessorTime.TotalSeconds
+      $cpuDelta = [math]::Max(0, $cpuSec - $pr.CpuTotalSec)
+      $cpuPct = [math]::Round(($cpuDelta / $dt) / $LogicalProcs * 100,1)
+
+      # IO deltas
+      $rBytes = $p.ReadTransferCount
+      $wBytes = $p.WriteTransferCount
+      $readBps = [math]::Max(0, ($rBytes - $pr.ReadBytes) / $dt)
+      $writeBps = [math]::Max(0, ($wBytes - $pr.WriteBytes) / $dt)
+      $totalBps = $readBps + $writeBps
+
+      # Update prev
+      $pr.CpuTotalSec = $cpuSec
+      $pr.ReadBytes   = $rBytes
+      $pr.WriteBytes  = $wBytes
+      $pr.Updated     = $now
+
+      # Consecutive high counters
+      if ($cpuPct -ge $CpuHighPercent) { $consec[$pid].CPU++ } else { $consec[$pid].CPU = 0 }
+      if ($wsMB -ge $RamHighMB)       { $consec[$pid].RAM++ } else { $consec[$pid].RAM = 0 }
+      if ($totalBps -ge $IoHighBps)   { $consec[$pid].IO++ }  else { $consec[$pid].IO  = 0 }
+
+      $newItems += [pscustomobject]@{
+        PID          = $pid
+        Name         = $name
+        CPUPercent   = $cpuPct
+        RAMMB        = $wsMB
+        Handles      = $handles
+        ReadBps      = $readBps
+        WriteBps     = $writeBps
+        TotalBps     = $totalBps
+        ReadBpsFmt   = (Format-Bps $readBps)
+        WriteBpsFmt  = (Format-Bps $writeBps)
+        TotalBpsFmt  = (Format-Bps $totalBps)
+        User         = $owner  # Lazy-fill owner below to avoid slow CIM per process
+        Path         = $path
+        HighCPU      = ($consec[$pid].CPU -ge $AlertOnConsecutive)
+        HighRAM      = ($consec[$pid].RAM -ge $AlertOnConsecutive)
+        HighIO       = ($consec[$pid].IO  -ge $AlertOnConsecutive)
       }
-
-      # Alertas (consecutivos)
-      # CPU
-      if ($cpu -ne $null -and $cpu -ge $CpuHighPercent) { $Consec.CPU++ } else { $Consec.CPU = 0 }
-      # RAM
-      if ($ramPct -ne $null -and $ramPct -ge $RamHighPercent) { $Consec.RAM++ } else { $Consec.RAM = 0 }
-      # Disco
-      if ($diskBusy -ne $null -and $diskBusy -ge $DiskBusyHighPercent) { $Consec.Disk++ } else { $Consec.Disk = 0 }
-      if ($diskQueue -ne $null -and $diskQueue -ge $DiskQueueHigh) { $Consec.Queue++ } else { $Consec.Queue = 0 }
-      # Red
-      foreach ($np in $netPerAdapter) {
-        if (-not $ConsecNet.ContainsKey($np.Adapter)) { $ConsecNet[$np.Adapter] = 0 }
-        if ($np.Mbps -ne $null -and $np.Mbps -ge $NetHighMbps) { $ConsecNet[$np.Adapter]++ } else { $ConsecNet[$np.Adapter] = 0 }
-      }
-
-      # Consola en vivo
-      $line = ("[{0}/{1}] CPU={2}% | RAM={3}% | DiskBusy={4}% | Queue={5} | " -f $i, $Samples,
-        [math]::Round($cpu,2), [math]::Round($ramPct,2), [math]::Round($diskBusy,2), [math]::Round($diskQueue,2))
-      $netStr = ($netPerAdapter | ForEach-Object { if ($_.Mbps -ne $null) { "{0}:{1}Mbps" -f $_.Adapter, $_.Mbps } else { "{0}:n/a" -f $_.Adapter } }) -join " | "
-      Write-Log ($line + "Net: " + $netStr) ([ConsoleColor]::Gray)
-
-      # Alertas visibles
-      $alerts = @()
-      if ($Consec.CPU   -ge $AlertOnConsecutive -and $cpu   -ne $null) { $alerts += "CPU>{0}% ({1} cons.)"   -f $CpuHighPercent, $Consec.CPU }
-      if ($Consec.RAM   -ge $AlertOnConsecutive -and $ramPct- ne $null){ $alerts += "RAM>{0}% ({1} cons.)"   -f $RamHighPercent, $Consec.RAM }
-      if ($Consec.Disk  -ge $AlertOnConsecutive -and $diskBusy -ne $null) { $alerts += "DiskBusy>{0}% ({1} cons.)" -f $DiskBusyHighPercent, $Consec.Disk }
-      if ($Consec.Queue -ge $AlertOnConsecutive -and $diskQueue -ne $null){ $alerts += "Queue>{0} ({1} cons.)"     -f $DiskQueueHigh, $Consec.Queue }
-      foreach ($a in $Adapters) {
-        if ($ConsecNet[$a] -ge $AlertOnConsecutive) { $alerts += "Net({0})>{1}Mbps ({2} cons.)" -f $a, $NetHighMbps, $ConsecNet[$a] }
-      }
-      if ($alerts.Count -gt 0) {
-        Write-Log ("ALERTA: " + ($alerts -join " | ")) ([ConsoleColor]::Yellow)
-      }
-
-      # Auditoría de muestra
-      $Audit.Add([pscustomobject]@{
-        Timestamp   = $t0
-        CPUPercent  = if ($cpu -ne $null) { [math]::Round($cpu,2) } else { $null }
-        RAMPercent  = if ($ramPct -ne $null) { [math]::Round($ramPct,2) } else { $null }
-        DiskBusyPct = if ($diskBusy -ne $null) { [math]::Round($diskBusy,2) } else { $null }
-        DiskQueue   = if ($diskQueue -ne $null) { [math]::Round($diskQueue,2) } else { $null }
-        NetSummary  = $netStr
-        Alerts      = ($alerts -join "; ")
-      })
-
-      # Respetar intervalo
-      $elapsed = ((Get-Date) - $t0).TotalSeconds
-      $sleepLeft = [int][math]::Max(0, $IntervalSeconds - $elapsed)
-      Start-Sleep -Seconds $sleepLeft
     }
-  } catch {
-    Write-Log "Error durante el monitoreo -> $($_.Exception.Message)" ([ConsoleColor]::Red)
+
+    # Fill owner for top N only (performance)
+    $topN = $newItems | Sort-Object CPUPercent -Descending | Select-Object -First 20
+    foreach ($ti in $topN) {
+      if ([string]::IsNullOrWhiteSpace($ti.User)) { $ti.User = Get-Owner $ti.PID }
+    }
+
+    # Apply filter
+    $filter = $SearchBox.Text
+    if ($filter -and $filter.Trim().Length -gt 0) {
+      $pattern = $filter.Trim()
+      $newItems = $newItems | Where-Object { $_.Name -like "*$pattern*" -or $_.Path -like "*$pattern*" }
+    }
+
+    if ($TopByCPU) { $newItems = $newItems | Sort-Object CPUPercent -Descending }
+
+    # Update observable collection (diff-based to reduce churn)
+    $Items.Clear()
+    foreach ($ni in $newItems) { $Items.Add($ni) }
+
+    # System bar
+    $sys = Get-SystemMetrics
+    $CpuText.Text = "CPU: " + ([string]::Format("{0:F1}%", $sys.CpuTotal))
+    $RamText.Text = "RAM: " + ([string]::Format("{0:F1}%", $sys.RamPercent))
+    $NetText.Text = "Net: " + (Format-Bps $sys.NetBps)
+    $StatusText.Text = ("[{0}] Items: {1} | Interval: {2}s" -f (Get-Date).ToString('HH:mm:ss'), $Items.Count, $IntervalSeconds)
   }
-}
 
-end {
-  # Persistir auditoría
-  try {
-    $Audit | Export-Csv -LiteralPath $AuditCsvPath -NoTypeInformation -Encoding UTF8
-    $Audit | ConvertTo-Json -Depth 4 | Out-File -LiteralPath $AuditJsonPath -Encoding UTF8
-  } catch {
-    Write-Log "Error guardando auditoría -> $($_.Exception.Message)" ([ConsoleColor]::Red)
-  }
+  # Timer
+  $timer = New-Object System.Windows.Threading.DispatcherTimer
+  $timer.Interval = [TimeSpan]::FromSeconds($IntervalSeconds)
+  $timer.Add_Tick({ Sample-Processes })
 
-  # Resumen
-  $cpuMax   = ($Audit | Where-Object { $_.CPUPercent -ne $null } | Measure-Object CPUPercent -Maximum).Maximum
-  $ramMax   = ($Audit | Where-Object { $_.RAMPercent -ne $null } | Measure-Object RAMPercent -Maximum).Maximum
-  $diskMax  = ($Audit | Where-Object { $_.DiskBusyPct -ne $null } | Measure-Object DiskBusyPct -Maximum).Maximum
-  $queueMax = ($Audit | Where-Object { $_.DiskQueue -ne $null } | Measure-Object DiskQueue -Maximum).Maximum
+  # Events
+  $RefreshBtn.Add_Click({ Sample-Processes })
+  $SearchBox.Add_TextChanged({ Sample-Processes })
+  $KillBtn.Add_Click({
+    $sel = $Grid.SelectedItems
+    if (-not $sel -or $sel.Count -eq 0) { [System.Windows.MessageBox]::Show("Selecciona uno o más procesos.", "Kill", "OK", "Warning") | Out-Null; return }
+    $names = ($sel | ForEach-Object { "{0} (PID {1})" -f $_.Name, $_.PID }) -join "`n"
+    $confirm = [System.Windows.MessageBox]::Show("¿Terminar estos procesos?\n\n$names", "Confirmar Kill", "YesNo", "Warning")
+    if ($confirm -eq 'Yes') {
+      foreach ($s in $sel) {
+        try { Stop-Process -Id $s.PID -Force -ErrorAction Stop } catch {}
+      }
+      Sample-Processes
+    }
+  })
 
-  $report = @()
-  $report += "==== Performance Monitor Summary ($((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))) ===="
-  $report += "Host: $env:COMPUTERNAME"
-  $report += "Interval: $IntervalSeconds s | Samples: $Samples"
-  $report += "Max CPU:  {0}%" -f ([math]::Round($cpuMax,2))
-  $report += "Max RAM:  {0}%" -f ([math]::Round($ramMax,2))
-  $report += "Max Disk: {0}%" -f ([math]::Round($diskMax,2))
-  $report += "Max Queue:{0}"   -f ([math]::Round($queueMax,2))
-  $report += ""
-  $report += "Logs:"
-  $report += " - Execution: $ExecutionLogPath"
-  $report += " - Audit CSV: $AuditCsvPath"
-  $report += " - Audit JSON: $AuditJsonPath"
-
-  try { $report | Out-File -LiteralPath $SummaryReportPath -Encoding UTF8 } catch { Write-Log "Error guardando resumen -> $($_.Exception.Message)" ([ConsoleColor]::Red) }
-
-  Write-Log "Monitoreo completado. Resumen: $SummaryReportPath" ([ConsoleColor]::Green)
-
-  if ($KeepWindowOpen) {
-    Write-Host ""
-    Write-Host "Presiona Enter para cerrar..." -ForegroundColor Cyan
-    [void] (Read-Host)
-  }
+  # Start
+  $window.Add_SourceInitialized({ $timer.Start(); Sample-Processes })
+  $null = $window.ShowDialog()
 }
