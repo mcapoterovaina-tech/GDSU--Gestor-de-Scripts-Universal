@@ -13,3 +13,19 @@ C:\Users\maikol\Desktop\GDSU--Gestor-de-Scripts-Universal-nueva vercion\GDSU\obj
 C:\Users\maikol\Desktop\GDSU--Gestor-de-Scripts-Universal-nueva vercion\GDSU\obj\Debug\net9.0-windows\GDSU.genruntimeconfig.cache
 C:\Users\maikol\Desktop\GDSU--Gestor-de-Scripts-Universal-nueva vercion\GDSU\obj\Debug\net9.0-windows\ref\GDSU.dll
 C:\Users\maikol\Desktop\GDSU--Gestor-de-Scripts-Universal-nueva vercion\GDSU\bin\Debug\net9.0-windows\logo.ico
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\GDSU.exe
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\logo.ico
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\GDSU.deps.json
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\GDSU.runtimeconfig.json
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\GDSU.dll
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\bin\Debug\net9.0-windows\GDSU.pdb
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.AssemblyInfoInputs.cache
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.AssemblyInfo.cs
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.csproj.CoreCompileInputs.cache
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.sourcelink.json
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.dll
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\refint\GDSU.dll
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.pdb
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\GDSU.genruntimeconfig.cache
+C:\Users\maikol\Documents\GitHub\GDSU--Gestor-de-Scripts-Universal\GDSU--1.0.0.1\GDSU\obj\Debug\net9.0-windows\ref\GDSU.dll

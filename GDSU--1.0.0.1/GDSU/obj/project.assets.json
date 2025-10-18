@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\maikol\\Desktop\\GDSU--Gestor-de-Scripts-Universal-nueva vercion\\GDSU\\GDSU.csproj",
+      "projectUniqueName": "C:\\Users\\maikol\\Documents\\GitHub\\GDSU--Gestor-de-Scripts-Universal\\GDSU--1.0.0.1\\GDSU\\GDSU.csproj",
       "projectName": "GDSU",
-      "projectPath": "C:\\Users\\maikol\\Desktop\\GDSU--Gestor-de-Scripts-Universal-nueva vercion\\GDSU\\GDSU.csproj",
+      "projectPath": "C:\\Users\\maikol\\Documents\\GitHub\\GDSU--Gestor-de-Scripts-Universal\\GDSU--1.0.0.1\\GDSU\\GDSU.csproj",
       "packagesPath": "C:\\Users\\maikol\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\maikol\\Desktop\\GDSU--Gestor-de-Scripts-Universal-nueva vercion\\GDSU\\obj\\",
+      "outputPath": "C:\\Users\\maikol\\Documents\\GitHub\\GDSU--Gestor-de-Scripts-Universal\\GDSU--1.0.0.1\\GDSU\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\maikol\\AppData\\Roaming\\NuGet\\NuGet.Config"

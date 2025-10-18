@@ -27,22 +27,48 @@ namespace GDSU
         private Button btnRefresh;
         private Button btnClose;
         private Button btnSelectFolder;
+        private Button btnDocs;
 
         private StatusStrip status;
         private ToolStripStatusLabel sslPath;
         private ToolStripStatusLabel sslStatus;
         private ToolStripStatusLabel sslTime;
 
+        // NEW: Stats panel
+        private GroupBox gbStats;
+        private Label lblScriptsTotal;
+        private Label lblScriptsSelected;
+        private Label lblRunning;
+        private Label lblCompleted;
+        private Label lblErrors;
+        private Label lblLastAction;
+
         // Logic
         private string rootPath;
         private readonly Dictionary<int, (string Path, string Ext)> runningProcesses = new();
+
+        // === NUEVOS CAMPOS PARA EL MONITOR ===
+        private GroupBox gbMonitor;
+        private ProgressBar pbCPU;
+        private ProgressBar pbRAM;
+        private System.Windows.Forms.Timer sysTimer;
+        private PerformanceCounter cpuCounter;
+        private PerformanceCounter ramCounter;
+
+        // NEW: Stats counters
+        private int totalLaunched = 0;
+        private int totalCompleted = 0;
+        private int totalErrors = 0;
 
         public MainForm()
         {
             // Base form
             Text = "Gestor de Scripts Universal";
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(900, 640);
+
+            // NEW: Ancho ampliado para alojar el panel estadístico sin tocar tu layout actual
+            Size = new Size(1140, 640);
+
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             BackColor = Color.FromArgb(245, 248, 250);
@@ -66,6 +92,11 @@ namespace GDSU
             BuildButtons();
             BuildStatusBar();
 
+            // NEW: Build stats panel (desacoplado)
+            BuildStatsPanel();
+            BuildSystemMonitor();
+            UpdateStatsUI();
+
             // Keyboard quick buttons
             AcceptButton = btnRun;
             CancelButton = btnClose;
@@ -78,7 +109,12 @@ namespace GDSU
                 RunSelected();
             };
 
-            btnRefresh.Click += (s, e) => LoadTree();
+            btnRefresh.Click += (s, e) =>
+            {
+                LoadTree();
+                UpdateStatsUI();
+            };
+
             btnClose.Click += (s, e) => Close();
 
             btnSelectFolder.Click += (s, e) =>
@@ -92,6 +128,7 @@ namespace GDSU
                     WriteLog($"Carpeta raíz cambiada a: {rootPath}");
                     sslPath.Text = $"Ruta: {rootPath}";
                     LoadTree();
+                    UpdateStatsUI();
                 }
             };
 
@@ -99,6 +136,7 @@ namespace GDSU
 
             // Start
             LoadTree();
+            UpdateStatsUI();
         }
 
         private void BuildHeader()
@@ -205,8 +243,16 @@ namespace GDSU
             btnSelectFolder = NewStyledButton("Seleccionar carpeta", new Point(410, 5));
             btnClose = NewStyledButton("Cerrar", new Point(650, 5));
             btnClose.Size = new Size(190, 30);
+            btnDocs = NewStyledButton("Documentación", new Point(650, 5));
+            btnClose = NewStyledButton("Cerrar", new Point(860, 5));
+            btnClose.Size = new Size(190, 30);
 
-            btnPanel.Controls.AddRange(new Control[] { btnRun, btnRefresh, btnSelectFolder, btnClose });
+            btnPanel.Controls.AddRange(new Control[] { btnRun, btnRefresh, btnSelectFolder, btnDocs, btnClose });
+            btnDocs.Click += (s, e) =>
+            {
+                var docForm = new DocForm();
+                docForm.ShowDialog();
+            };
         }
 
         private void BuildStatusBar()
@@ -242,6 +288,87 @@ namespace GDSU
             Controls.Add(status);
         }
 
+        // NEW: Stats panel (desacoplado del contentPanel, ubicado a la derecha)
+        private void BuildStatsPanel()
+        {
+            gbStats = new GroupBox
+            {
+                Text = " Estadísticas ",
+                Font = new Font("Segoe UI", 9, FontStyle.Regular),
+                ForeColor = Color.FromArgb(50, 60, 70),
+                Size = new Size(210, 220),
+                Location = new Point(900, 60), // espacio a la derecha del contentPanel
+                BackColor = Color.FromArgb(252, 253, 254)
+            };
+            Controls.Add(gbStats);
+
+            lblScriptsTotal = NewStatLabel("Scripts cargados: 0", new Point(16, 28));
+            lblScriptsSelected = NewStatLabel("Seleccionados: 0", new Point(16, 56));
+            lblRunning = NewStatLabel("Procesos activos: 0", new Point(16, 84));
+            lblCompleted = NewStatLabel("Completados: 0", new Point(16, 112));
+            lblErrors = NewStatLabel("Errores: 0", new Point(16, 140));
+            lblLastAction = NewStatLabel("Última acción: —", new Point(16, 168));
+
+            gbStats.Controls.Add(lblScriptsTotal);
+            gbStats.Controls.Add(lblScriptsSelected);
+            gbStats.Controls.Add(lblRunning);
+            gbStats.Controls.Add(lblCompleted);
+            gbStats.Controls.Add(lblErrors);
+            gbStats.Controls.Add(lblLastAction);
+        }
+
+        // NUEVO MÉTODO
+        private void BuildSystemMonitor()
+        {
+            gbMonitor = new GroupBox
+            {
+                Text = " Monitor del sistema ",
+                Size = new Size(210, 120),
+                Location = new Point(900, 300),
+                ForeColor = Color.FromArgb(50, 60, 70),
+                BackColor = Color.FromArgb(252, 253, 254)
+            };
+            Controls.Add(gbMonitor);
+
+            var lblCPU = new Label { Text = "CPU", Location = new Point(16, 28), AutoSize = true };
+            pbCPU = new ProgressBar { Location = new Point(60, 25), Size = new Size(120, 20) };
+            gbMonitor.Controls.Add(lblCPU);
+            gbMonitor.Controls.Add(pbCPU);
+
+            var lblRAM = new Label { Text = "RAM", Location = new Point(16, 68), AutoSize = true };
+            pbRAM = new ProgressBar { Location = new Point(60, 65), Size = new Size(120, 20) };
+            gbMonitor.Controls.Add(lblRAM);
+            gbMonitor.Controls.Add(pbRAM);
+
+            cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+            ramCounter = new PerformanceCounter("Memory", "% Committed Bytes In Use");
+
+            sysTimer = new System.Windows.Forms.Timer { Interval = 2000 };  // <- aquí
+            sysTimer.Tick += (s, e) =>
+            {
+                try
+                {
+                    pbCPU.Value = Math.Min(100, (int)cpuCounter.NextValue());
+                    pbRAM.Value = Math.Min(100, (int)ramCounter.NextValue());
+                }
+                catch { /* ignorar errores de lectura */ }
+            };
+            sysTimer.Start();
+        }
+
+
+
+        private Label NewStatLabel(string text, Point location)
+        {
+            return new Label
+            {
+                Text = text,
+                Location = location,
+                AutoSize = true,
+                ForeColor = Color.FromArgb(50, 60, 70)
+            };
+        }
+
         private Button NewStyledButton(string text, Point location)
         {
             var btn = new Button
@@ -270,6 +397,9 @@ namespace GDSU
             tbLog.AppendText($"[{timestamp}] {text}{Environment.NewLine}");
             sslStatus.Text = text;
             sslTime.Text = DateTime.Now.ToString("HH:mm");
+
+            // NEW: reflejar en el panel estadístico la última acción
+            lblLastAction.Text = $"Última acción: {text}";
         }
 
         private bool IsAdmin()
@@ -289,6 +419,7 @@ namespace GDSU
             {
                 WriteLog($"ERROR: Ruta raíz inválida: {rootPath}");
                 tree.EndUpdate();
+                UpdateStatsUI();
                 return;
             }
 
@@ -341,6 +472,9 @@ namespace GDSU
             tree.EndUpdate();
             sslPath.Text = $"Ruta: {rootPath}";
             WriteLog($"Árbol cargado desde: {rootPath}");
+
+            // NEW: actualizar estadísticas tras recarga
+            UpdateStatsUI();
         }
 
         private IEnumerable<string> SafeEnumerateDirectories(string path)
@@ -375,6 +509,9 @@ namespace GDSU
                         child.Checked = node.Checked;
                 }
             }
+
+            // NEW: actualizar seleccionados cuando cambian checks
+            UpdateStatsUI();
         }
 
         // Parallel execution of selected items
@@ -407,38 +544,55 @@ namespace GDSU
                             }
 
                             p.EnableRaisingEvents = true;
-p.Exited += (s, e) =>
-{
-    try
-    {
-        var proc = (Process)s!;
-        int pid = -1;
-        int code = -1;
+                            p.Exited += (s, e) =>
+                            {
+                                try
+                                {
+                                    var proc = (Process)s!;
+                                    int pid = -1;
+                                    int code = -1;
 
-        // Capturamos datos de forma segura
-        try { pid = proc.Id; } catch { }
-        try { code = proc.ExitCode; } catch { }
+                                    // Capturamos datos de forma segura
+                                    try { pid = proc.Id; } catch { }
+                                    try { code = proc.ExitCode; } catch { }
 
-        lock (runningProcesses) { if (pid > 0) runningProcesses.Remove(pid); }
+                                    lock (runningProcesses) { if (pid > 0) runningProcesses.Remove(pid); }
 
-        SafeInvoke(() => WriteLog($"FIN (PID {pid}, exit code {code})"));
-        proc.Dispose();
-    }
-    catch (Exception ex)
-    {
-        SafeInvoke(() => WriteLog($"Error en evento Exited: {ex.Message}"));
-    }
-};
+                                    // NEW: actualizar contadores de completados/errores
+                                    if (code != 0) totalErrors++;
+                                    totalCompleted++;
 
+                                    SafeInvoke(() =>
+                                    {
+                                        WriteLog($"FIN (PID {pid}, exit code {code})");
+                                        UpdateStatsUI();
+                                    });
+                                    proc.Dispose();
+                                }
+                                catch (Exception ex)
+                                {
+                                    SafeInvoke(() =>
+                                    {
+                                        WriteLog($"Error en evento Exited: {ex.Message}");
+                                        UpdateStatsUI();
+                                    });
+                                }
+                            };
 
                             lock (runningProcesses) { runningProcesses[p.Id] = (fullPath, ext); }
 
                             WriteLog($"Lanzado: {fullPath} (PID {p.Id})");
                             started++;
+                            totalLaunched++;
+
+                            // NEW: actualizar estadísticas al lanzar
+                            UpdateStatsUI();
                         }
                         catch (Exception ex)
                         {
                             WriteLog($"Excepción al iniciar {fullPath} -> {ex.Message}");
+                            totalErrors++;
+                            UpdateStatsUI();
                         }
                     }
                 }
@@ -448,6 +602,9 @@ p.Exited += (s, e) =>
                 WriteLog("No hay scripts seleccionados.");
             else
                 WriteLog($"Procesos lanzados en paralelo: {started}");
+
+            // NEW: actualización final
+            UpdateStatsUI();
         }
 
         private Process StartProcess(string fileName, string arguments, string workingDir)
@@ -475,6 +632,27 @@ p.Exited += (s, e) =>
             {
                 try { action(); } catch { /* ignore */ }
             }
+        }
+
+        // NEW: cálculo y refresco de estadísticas
+        private void UpdateStatsUI()
+        {
+            int totalScripts = tree.Nodes.Cast<TreeNode>().Sum(folder => folder.Nodes.Count);
+            int selectedScripts = tree.Nodes.Cast<TreeNode>()
+                                           .SelectMany(folder => folder.Nodes.Cast<TreeNode>())
+                                           .Count(n => n.Checked);
+            int running = 0;
+            lock (runningProcesses) { running = runningProcesses.Count; }
+
+            lblScriptsTotal.Text = $"Scripts cargados: {totalScripts}";
+            lblScriptsSelected.Text = $"Seleccionados: {selectedScripts}";
+            lblRunning.Text = $"Procesos activos: {running}";
+            lblCompleted.Text = $"Completados: {totalCompleted}";
+            lblErrors.Text = $"Errores: {totalErrors}";
+
+            // Color semántico rápido
+            lblRunning.ForeColor = running > 0 ? Color.FromArgb(41, 128, 185) : Color.FromArgb(50, 60, 70);
+            lblErrors.ForeColor = totalErrors > 0 ? Color.FromArgb(192, 57, 43) : Color.FromArgb(50, 60, 70);
         }
     }
 }

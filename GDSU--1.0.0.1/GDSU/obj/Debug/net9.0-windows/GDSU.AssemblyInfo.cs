@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GDSU")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f421b8ec38edc4aafdd2250ca0f4d78c7fc9d444")]
 [assembly: System.Reflection.AssemblyProductAttribute("GDSU")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GDSU")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
