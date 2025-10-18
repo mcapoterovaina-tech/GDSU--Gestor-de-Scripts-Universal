@@ -1,655 +1,639 @@
-<# 
-.SYNOPSIS
-  App WPF en tiempo real con tablas y gráficos incrustados para inventario de hardware.
-.NOTES
-  - Requiere STA para WPF. Bootstrap incluido.
-  - PowerShell 5.1+ en Windows. Ejecutar como admin para cobertura total de WMI/CIM.
-#>
+#requires -version 5.1
+# Inventario de hardware con GUI: CPU, RAM, discos, GPU y firmware
+# Autor: Copilot (para Maikol)
+# Ejecutar como Administrador para mayor acceso a WMI/CIM
 
-param(
-  [string]$OutputPath = "C:\HardwareInventory",
-  [switch]$IncludePerDeviceCSV,
-  [string]$Tag = "GSU",
-  [string]$LogPath = "C:\Logs",
-  [int]$RefreshSeconds = 10
-)
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 
-# --- Garantizar STA ---
-if ([System.Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
-  $argsList = @("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-File", "`"$PSCommandPath`"")
+# =========================
+# Configuracion y rutas
+# =========================
+$Global:AppTitle   = "Inventario de Hardware"
+$Global:LogRoot    = "C:\Logs\InventarioHW"
+$Global:ExportRoot = Join-Path $env:USERPROFILE "Documents\InventarioHW"
+$Global:LogFile    = Join-Path $Global:LogRoot ("Inventario_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
 
-  if ($OutputPath)          { $argsList += "-OutputPath";         $argsList += "`"$OutputPath`"" }
-  if ($IncludePerDeviceCSV) { $argsList += "-IncludePerDeviceCSV" }
-  if ($Tag)                 { $argsList += "-Tag";                $argsList += "`"$Tag`"" }
-  if ($LogPath)             { $argsList += "-LogPath";            $argsList += "`"$LogPath`"" }
-  if ($RefreshSeconds)      { $argsList += "-RefreshSeconds";     $argsList += "$RefreshSeconds" }
-
-  $exe = (Get-Command powershell).Source
-  Start-Process -FilePath $exe -ArgumentList $argsList -WindowStyle Normal
-  return
+foreach ($p in @($Global:LogRoot, $Global:ExportRoot)) {
+    if (!(Test-Path $p)) { New-Item -ItemType Directory -Path $p | Out-Null }
 }
 
-# --- Dependencias WPF + Charts ---
-try {
-  Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
-  Add-Type -AssemblyName WindowsFormsIntegration
-  Add-Type -AssemblyName System.Windows.Forms
-  Add-Type -AssemblyName System.Windows.Forms.DataVisualization
-} catch {
-  Write-Host "Error cargando ensamblados WPF/Charting: $($_.Exception.Message)" -ForegroundColor Red
-  exit
-}
-
-# --- Preparación de carpetas y estado ---
-foreach ($p in @($OutputPath, $LogPath)) {
-  if (-not (Test-Path $p)) {
-    New-Item -ItemType Directory -Path $p -Force | Out-Null
-  }
-}
-
-$TimeStamp   = Get-Date -Format "yyyyMMdd_HHmmss"
-$SnapshotDir = Join-Path $OutputPath "Snapshot_$TimeStamp"
-New-Item -ItemType Directory -Path $SnapshotDir -Force | Out-Null
-$LogFile     = Join-Path $LogPath "HWInventory_$TimeStamp.log"
-$SummaryJson = Join-Path $SnapshotDir "summary.json"
-$SummaryCsv  = Join-Path $SnapshotDir "summary.csv"
-
+# =========================
+# Utilidades y logging
+# =========================
 function Write-Log {
-  param([string]$Message, [string]$Level = "INFO")
-  $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Level] $Message"
-  Add-Content -Path $LogFile -Value $line
-  $color = switch ($Level) {
-    "ERROR" { "Red" }
-    "WARN"  { "Yellow" }
-    default { "Green" }
-  }
-  Write-Host $line -ForegroundColor $color
+    param([string]$Message, [string]$Level = "INFO")
+    $ts = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $line = "[{0}] [{1}] {2}" -f $ts, $Level.ToUpper(), $Message
+    try { Add-Content -Path $Global:LogFile -Value $line } catch { }
+    if ($Global:LogBox -and !$Global:LogBox.IsDisposed) {
+        $Global:LogBox.AppendText("$line`r`n")
+        $Global:LogBox.SelectionStart = $Global:LogBox.Text.Length
+        $Global:LogBox.ScrollToCaret()
+    }
 }
 
-function Try-Cim {
-  param([string]$Class)
-  try {
-    Get-CimInstance -ClassName $Class -ErrorAction Stop
-  } catch {
-    Write-Log "Fallo CIM ${Class}. Probando WMI..." "WARN"
+function Get-CimSafe {
+    param([Parameter(Mandatory)][string]$Class, [string]$Namespace = "root\cimv2")
     try {
-      Get-WmiObject -Class $Class -ErrorAction Stop
+        return Get-CimInstance -ClassName $Class -Namespace $Namespace -ErrorAction Stop
     } catch {
-      $msg = $_.Exception.Message
-      Write-Log "Fallo WMI ${Class}: $msg" "ERROR"
-      @()
+        Write-Log "Fallo CIM para $Class -> $($_.Exception.Message). Intentando WMI..." "WARN"
+        try {
+            return Get-WmiObject -Class $Class -Namespace $Namespace -ErrorAction Stop
+        } catch {
+            Write-Log "Fallo WMI para $Class -> $($_.Exception.Message)" "ERROR"
+            return @()
+        }
     }
-  }
 }
 
-
-
-$State = [pscustomobject]@{
-  Tag         = $Tag
-  SnapshotDir = $SnapshotDir
-  IncludeCSV  = $IncludePerDeviceCSV.IsPresent
-  FilterText  = ''
-  Paused      = $false
-  IntervalSec = [math]::Max(2, $RefreshSeconds)
-  Counts      = @{}
-}
-
-# --- XAML: layout con tabs y contenedores para gráficos (WindowsFormsHost) ---
-$xaml = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration"
-        Title="Hardware Inventory (Realtime + Charts)" Height="780" Width="1200" Background="#1E1E1E" WindowStartupLocation="CenterScreen">
-  <Window.Resources>
-    <Style TargetType="DataGrid">
-      <Setter Property="Background" Value="#1E1E1E"/>
-      <Setter Property="Foreground" Value="#DDDDDD"/>
-      <Setter Property="GridLinesVisibility" Value="None"/>
-      <Setter Property="RowHeaderWidth" Value="0"/>
-      <Setter Property="AlternationCount" Value="2"/>
-    </Style>
-    <Style TargetType="DataGridRow">
-      <Setter Property="Background" Value="#202020"/>
-      <Style.Triggers>
-        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-          <Setter Property="Background" Value="#242424"/>
-        </Trigger>
-      </Style.Triggers>
-    </Style>
-    <Style TargetType="TextBlock">
-      <Setter Property="Foreground" Value="#DDDDDD"/>
-    </Style>
-    <Style TargetType="Button">
-      <Setter Property="Padding" Value="10,4"/>
-      <Setter Property="Margin" Value="6,0,0,0"/>
-    </Style>
-  </Window.Resources>
-
-  <DockPanel Margin="12">
-    <!-- Header -->
-    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
-      <TextBox x:Name="FilterBox" Width="280" Margin="0,0,8,0" ToolTip="Filtrar por texto en la pestaña actual"/>
-      <Button x:Name="ExportAllBtn" Content="Exportar todo (CSV/JSON)"/>
-      <Button x:Name="OpenFolderBtn" Content="Abrir carpeta Snapshot"/>
-      <Button x:Name="PauseResumeBtn" Content="Pausar"/>
-      <TextBlock Text="Intervalo (s)" Margin="12,0,6,0"/>
-      <Slider x:Name="IntervalSlider" Minimum="2" Maximum="60" Width="160" TickFrequency="2" IsSnapToTickEnabled="True"/>
-      <TextBlock x:Name="IntervalValue" Margin="8,0,0,0"/>
-      <TextBlock Text="  |  Tag:" Margin="12,0,4,0"/>
-      <TextBlock x:Name="TagText"/>
-      <TextBlock Text="  |  Snapshot:" Margin="12,0,4,0"/>
-      <TextBlock x:Name="SnapshotPathText"/>
-    </StackPanel>
-
-    <!-- Tabs -->
-    <TabControl x:Name="Tabs">
-      <TabItem Header="Sistema">
-        <Grid Margin="0">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-          </Grid.RowDefinitions>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-            <TextBlock x:Name="SysBadge" />
-          </StackPanel>
-          <DataGrid x:Name="GridSys" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Fabricante" Binding="{Binding Manufacturer}" Width="180"/>
-              <DataGridTextColumn Header="Modelo" Binding="{Binding Model}" Width="220"/>
-              <DataGridTextColumn Header="RAM Total (GB)" Binding="{Binding TotalRAM_GB}" Width="120"/>
-              <DataGridTextColumn Header="OS" Binding="{Binding OS}" Width="220"/>
-              <DataGridTextColumn Header="Versión" Binding="{Binding OSVersion}" Width="120"/>
-              <DataGridTextColumn Header="Arquitectura" Binding="{Binding Architecture}" Width="120"/>
-              <DataGridTextColumn Header="Build" Binding="{Binding Build}" Width="80"/>
-            </DataGrid.Columns>
-          </DataGrid>
-        </Grid>
-      </TabItem>
-
-      <TabItem Header="CPU">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="3*"/>
-          </Grid.ColumnDefinitions>
-          <DataGrid x:Name="GridCPU" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="*"/>
-              <DataGridTextColumn Header="Fabricante" Binding="{Binding Manufacturer}" Width="160"/>
-              <DataGridTextColumn Header="Cores" Binding="{Binding NumberOfCores}" Width="80"/>
-              <DataGridTextColumn Header="Threads" Binding="{Binding NumberOfLogicalProcessors}" Width="90"/>
-              <DataGridTextColumn Header="Max MHz" Binding="{Binding MaxClockSpeed}" Width="90"/>
-              <DataGridTextColumn Header="L2 KB" Binding="{Binding L2CacheSize}" Width="80"/>
-              <DataGridTextColumn Header="L3 KB" Binding="{Binding L3CacheSize}" Width="80"/>
-              <DataGridTextColumn Header="ProcessorId" Binding="{Binding ProcessorId}" Width="240"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <WindowsFormsHost x:Name="ChartCPUHost" Grid.Column="1" Margin="8,0,0,0"/>
-        </Grid>
-      </TabItem>
-
-      <TabItem Header="RAM">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="3*"/>
-          </Grid.ColumnDefinitions>
-          <DataGrid x:Name="GridRAM" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Bank" Binding="{Binding BankLabel}" Width="160"/>
-              <DataGridTextColumn Header="Capacidad (GB)" Binding="{Binding Capacity_GB}" Width="120"/>
-              <DataGridTextColumn Header="Speed (MHz)" Binding="{Binding Speed_MHz}" Width="120"/>
-              <DataGridTextColumn Header="Manufacturer" Binding="{Binding Manufacturer}" Width="160"/>
-              <DataGridTextColumn Header="PartNumber" Binding="{Binding PartNumber}" Width="160"/>
-              <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="160"/>
-              <DataGridTextColumn Header="ConfiguredClock" Binding="{Binding ConfiguredClockSpeed}" Width="140"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <WindowsFormsHost x:Name="ChartRAMHost" Grid.Column="1" Margin="8,0,0,0"/>
-        </Grid>
-      </TabItem>
-
-      <TabItem Header="Discos">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="3*"/>
-          </Grid.ColumnDefinitions>
-          <DataGrid x:Name="GridDisk" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Modelo" Binding="{Binding Model}" Width="220"/>
-              <DataGridTextColumn Header="Fabricante" Binding="{Binding Manufacturer}" Width="160"/>
-              <DataGridTextColumn Header="Interfaz" Binding="{Binding Interface}" Width="120"/>
-              <DataGridTextColumn Header="Tipo" Binding="{Binding MediaType}" Width="120"/>
-              <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="220"/>
-              <DataGridTextColumn Header="Tamaño (GB)" Binding="{Binding Size_GB}" Width="120"/>
-              <DataGridTextColumn Header="Firmware" Binding="{Binding Firmware}" Width="120"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <WindowsFormsHost x:Name="ChartDiskHost" Grid.Column="1" Margin="8,0,0,0"/>
-        </Grid>
-      </TabItem>
-
-      <TabItem Header="GPU">
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="3*"/>
-          </Grid.ColumnDefinitions>
-          <DataGrid x:Name="GridGPU" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Nombre" Binding="{Binding Name}" Width="260"/>
-              <DataGridTextColumn Header="Driver" Binding="{Binding DriverVersion}" Width="160"/>
-              <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="160"/>
-              <DataGridTextColumn Header="VRAM (GB)" Binding="{Binding VRAM_GB}" Width="120"/>
-              <DataGridTextColumn Header="VideoProcessor" Binding="{Binding VideoProcessor}" Width="*"/>
-            </DataGrid.Columns>
-          </DataGrid>
-          <WindowsFormsHost x:Name="ChartGPUHost" Grid.Column="1" Margin="8,0,0,0"/>
-        </Grid>
-      </TabItem>
-
-      <TabItem Header="BIOS / Board">
-        <Grid>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-          </Grid.RowDefinitions>
-          <DataGrid x:Name="GridFW" AutoGenerateColumns="False" IsReadOnly="True">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="BIOS Fabricante" Binding="{Binding BIOS_Manufacturer}" Width="220"/>
-              <DataGridTextColumn Header="BIOS Versión" Binding="{Binding BIOS_Version}" Width="220"/>
-              <DataGridTextColumn Header="ReleaseDate" Binding="{Binding BIOS_ReleaseDate}" Width="160"/>
-              <DataGridTextColumn Header="BIOS Serial" Binding="{Binding BIOS_Serial}" Width="160"/>
-              <DataGridTextColumn Header="Board Fabricante" Binding="{Binding Board_Manufacturer}" Width="220"/>
-              <DataGridTextColumn Header="Board Producto" Binding="{Binding Board_Product}" Width="220"/>
-              <DataGridTextColumn Header="Board Serial" Binding="{Binding Board_Serial}" Width="160"/>
-              <DataGridTextColumn Header="Board Version" Binding="{Binding Board_Version}" Width="160"/>
-            </DataGrid.Columns>
-          </DataGrid>
-        </Grid>
-      </TabItem>
-    </TabControl>
-
-    <!-- Footer -->
-    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
-      <TextBlock x:Name="StatusText"/>
-      <TextBlock Text="  |  "/>
-      <TextBlock Text="Items:"/>
-      <TextBlock x:Name="CountText"/>
-    </StackPanel>
-  </DockPanel>
-</Window>
-"@
-
-# --- Cargar UI y referencias ---
-$reader = New-Object System.Xml.XmlNodeReader([xml]$xaml)
-$window = [Windows.Markup.XamlReader]::Load($reader)
-
-$FilterBox         = $window.FindName('FilterBox')
-$ExportAllBtn      = $window.FindName('ExportAllBtn')
-$OpenFolderBtn     = $window.FindName('OpenFolderBtn')
-$PauseResumeBtn    = $window.FindName('PauseResumeBtn')
-$IntervalSlider    = $window.FindName('IntervalSlider')
-$IntervalValue     = $window.FindName('IntervalValue')
-$TagText           = $window.FindName('TagText')
-$SnapshotPathText  = $window.FindName('SnapshotPathText')
-$StatusText        = $window.FindName('StatusText')
-$CountText         = $window.FindName('CountText')
-$Tabs              = $window.FindName('Tabs')
-$SysBadge          = $window.FindName('SysBadge')
-
-$GridSys = $window.FindName('GridSys')
-$GridCPU = $window.FindName('GridCPU')
-$GridRAM = $window.FindName('GridRAM')
-$GridDisk= $window.FindName('GridDisk')
-$GridGPU = $window.FindName('GridGPU')
-$GridFW  = $window.FindName('GridFW')
-
-$ChartCPUHost = $window.FindName('ChartCPUHost')
-$ChartRAMHost = $window.FindName('ChartRAMHost')
-$ChartDiskHost= $window.FindName('ChartDiskHost')
-$ChartGPUHost = $window.FindName('ChartGPUHost')
-
-$TagText.Text = $State.Tag
-$SnapshotPathText.Text = $State.SnapshotDir
-$IntervalSlider.Value  = [double]$State.IntervalSec
-$IntervalValue.Text    = "$($State.IntervalSec)s"
-
-# --- Crear Chart controls y asignar al host ---
-function New-ChartControl([string]$title,[string]$yTitle) {
-  $chart = New-Object System.Windows.Forms.DataVisualization.Charting.Chart
-  $chart.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
-  $chart.ForeColor = [System.Drawing.Color]::White
-  $chart.Dock = [System.Windows.Forms.DockStyle]::Fill
-
-  $area = New-Object System.Windows.Forms.DataVisualization.Charting.ChartArea "Main"
-  $area.BackColor = [System.Drawing.Color]::FromArgb(34,34,34)
-  $area.AxisX.Interval = 1
-  $area.AxisX.LabelStyle.ForeColor = [System.Drawing.Color]::White
-  $area.AxisY.LabelStyle.ForeColor = [System.Drawing.Color]::White
-  $area.AxisY.Title = $yTitle
-  $area.AxisY.TitleForeColor = [System.Drawing.Color]::White
-  $chart.ChartAreas.Add($area)
-
-  $legend = New-Object System.Windows.Forms.DataVisualization.Charting.Legend
-  $legend.ForeColor = [System.Drawing.Color]::White
-  $chart.Legends.Add($legend)
-
-  $chart.Titles.Add($title) | Out-Null
-  $chart.Titles[0].ForeColor = [System.Drawing.Color]::White
-  return $chart
-}
-# Instanciar y montar charts
-$cpuChart  = New-ChartControl "CPU logical processors" "Threads"
-$ramChart  = New-ChartControl "RAM modules capacity (GB)" "GB"
-$diskChart = New-ChartControl "Disk size (GB)" "GB"
-$gpuChart  = New-ChartControl "GPU VRAM (GB)" "GB"
-
-$ChartCPUHost.Child  = $cpuChart
-$ChartRAMHost.Child  = $ramChart
-$ChartDiskHost.Child = $diskChart
-$ChartGPUHost.Child  = $gpuChart
-
-# --- Datos en memoria ---
-$sysSummary = $null
-$cpu = $null
-$ramNormalized = $null
-$diskNormalized = $null
-$gpuNormalized = $null
-$fwSummary = $null
-
-function Collect-Inventory {
-  # Sistema
-  $cs = Try-Cim -Class "Win32_ComputerSystem" | Select-Object Manufacturer, Model, TotalPhysicalMemory
-  $os = Try-Cim -Class "Win32_OperatingSystem" | Select-Object Caption, Version, OSArchitecture, BuildNumber
-  $sysSummary = [pscustomobject]@{
-    Manufacturer        = $cs.Manufacturer
-    Model               = $cs.Model
-    TotalRAM_GB         = [Math]::Round(($cs.TotalPhysicalMemory/1GB),2)
-    OS                  = $os.Caption
-    OSVersion           = $os.Version
-    Architecture        = $os.OSArchitecture
-    Build               = $os.BuildNumber
-  }
-
-  # CPU
-  $cpuRaw = Try-Cim -Class "Win32_Processor"
-  $cpu = $cpuRaw | Select-Object Name, Manufacturer, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, L2CacheSize, L3CacheSize, ProcessorId
-
-  # RAM
-  $ramRaw = Try-Cim -Class "Win32_PhysicalMemory"
-  $ram = $ramRaw | Select-Object BankLabel, Capacity, Speed, Manufacturer, PartNumber, SerialNumber, ConfiguredClockSpeed
-  $ramNormalized = $ram | ForEach-Object {
-    [pscustomobject]@{
-      BankLabel            = $_.BankLabel
-      Capacity_GB          = [Math]::Round(($_.Capacity/1GB),2)
-      Speed_MHz            = $_.Speed
-      Manufacturer         = $_.Manufacturer
-      PartNumber           = $_.PartNumber
-      SerialNumber         = $_.SerialNumber
-      ConfiguredClockSpeed = $_.ConfiguredClockSpeed
+# =========================
+# Coleccion de datos
+# =========================
+function Collect-CPU {
+    $cpu = Get-CimSafe -Class Win32_Processor
+    $list = foreach ($c in $cpu) {
+        [PSCustomObject]@{
+            Name             = $c.Name
+            Manufacturer     = $c.Manufacturer
+            MaxClockMHz      = $c.MaxClockSpeed
+            LogicalProcessors = $c.NumberOfLogicalProcessors
+            Cores            = $c.NumberOfCores
+            L2CacheKB        = $c.L2CacheSize
+            L3CacheKB        = $c.L3CacheSize
+            Socket           = $c.SocketDesignation
+            ProcessorId      = $c.ProcessorId
+        }
     }
-  }
+    Write-Log "CPU: $($list.Count) elemento(s)"
+    return $list
+}
 
-  # Discos
-  $diskRaw = Try-Cim -Class "Win32_DiskDrive"
-  $disk = $diskRaw | Select-Object Model, Manufacturer, InterfaceType, MediaType, SerialNumber, Size, FirmwareRevision
-  $diskNormalized = $disk | ForEach-Object {
-    [pscustomobject]@{
-      Model         = $_.Model
-      Manufacturer  = $_.Manufacturer
-      Interface     = $_.InterfaceType
-      MediaType     = $_.MediaType
-      SerialNumber  = $_.SerialNumber
-      Size_GB       = if ($_.Size) { [Math]::Round(($_.Size/1GB),2) } else { $null }
-      Firmware      = $_.FirmwareRevision
+function Collect-RAM {
+    $cs  = Get-CimSafe -Class Win32_ComputerSystem
+    $mem = Get-CimSafe -Class Win32_PhysicalMemory
+    $totalGB = if ($cs) { [math]::Round(($cs[0].TotalPhysicalMemory / 1GB), 2) } else { $null }
+    $modules = foreach ($m in $mem) {
+        [PSCustomObject]@{
+            CapacityGB     = [math]::Round(($m.Capacity / 1GB), 2)
+            SpeedMHz       = $m.Speed
+            Manufacturer   = $m.Manufacturer
+            PartNumber     = $m.PartNumber
+            SerialNumber   = $m.SerialNumber
+            FormFactor     = $m.FormFactor
+            BankLabel      = $m.BankLabel
+        }
     }
-  }
-
-  # GPU
-  $gpuRaw = Try-Cim -Class "Win32_VideoController"
-  $gpu = $gpuRaw | Select-Object Name, DriverVersion, AdapterCompatibility, AdapterRAM, VideoProcessor
-  $gpuNormalized = $gpu | ForEach-Object {
-    [pscustomobject]@{
-      Name                 = $_.Name
-      DriverVersion        = $_.DriverVersion
-      Vendor               = $_.AdapterCompatibility
-      VRAM_GB              = if ($_.AdapterRAM) { [Math]::Round(($_.AdapterRAM/1GB),2) } else { $null }
-      VideoProcessor       = $_.VideoProcessor
+    Write-Log "RAM total: $totalGB GB, modulos: $($modules.Count)"
+    return @{
+        TotalGB = $totalGB
+        Modules = $modules
     }
-  }
-
-  # BIOS / Board
-  $biosRaw = Try-Cim -Class "Win32_BIOS"
-  $bios = $biosRaw | Select-Object Manufacturer, SMBIOSBIOSVersion, BIOSVersion, ReleaseDate, SerialNumber
-  $mbRaw = Try-Cim -Class "Win32_BaseBoard"
-  $mb = $mbRaw | Select-Object Manufacturer, Product, SerialNumber, Version
-
-  $fwSummary = [pscustomobject]@{
-    BIOS_Manufacturer     = $bios.Manufacturer -join "; "
-    BIOS_Version          = if ($bios.SMBIOSBIOSVersion) { $bios.SMBIOSBIOSVersion } else { ($bios.BIOSVersion -join "; ") }
-    BIOS_ReleaseDate      = ($bios.ReleaseDate | Select-Object -First 1)
-    BIOS_Serial           = ($bios.SerialNumber | Select-Object -First 1)
-    Board_Manufacturer    = $mb.Manufacturer -join "; "
-    Board_Product         = $mb.Product -join "; "
-    Board_Serial          = $mb.SerialNumber -join "; "
-    Board_Version         = $mb.Version -join "; "
-  }
-
-  $State.Counts = @{
-    Sys   = 1
-    CPU   = ($cpu | Measure-Object).Count
-    RAM   = ($ramNormalized | Measure-Object).Count
-    Disk  = ($diskNormalized | Measure-Object).Count
-    GPU   = ($gpuNormalized | Measure-Object).Count
-    FW    = 1
-  }
 }
 
-# --- Filtro y binding ---
-function Passes-Filter { param($item, [string]$text)
-  if ([string]::IsNullOrWhiteSpace($text)) { return $true }
-  $t = $text.ToLowerInvariant()
-  foreach ($p in $item.PSObject.Properties) {
-    $v = [string]$p.Value
-    if ($v -and $v.ToLowerInvariant().Contains($t)) { return $true }
-  }
-  return $false
-}
+function Collect-Disks {
+    $drives = Get-CimSafe -Class Win32_DiskDrive
+    $parts  = Get-CimSafe -Class Win32_DiskPartition
+    $vols   = Get-CimSafe -Class Win32_LogicalDisk
 
-function Bind-Tables {
-  $GridSys.ItemsSource  = ,$sysSummary
-  $GridCPU.ItemsSource  = $cpu
-  $GridRAM.ItemsSource  = $ramNormalized
-  $GridDisk.ItemsSource = $diskNormalized
-  $GridGPU.ItemsSource  = $gpuNormalized
-  $GridFW.ItemsSource   = ,$fwSummary
-
-  $CountText.Text = "Sys:$($State.Counts.Sys) CPU:$($State.Counts.CPU) RAM:$($State.Counts.RAM) Disk:$($State.Counts.Disk) GPU:$($State.Counts.GPU) FW:$($State.Counts.FW)"
-  $StatusText.Text = "Última actualización: $(Get-Date -Format 'HH:mm:ss') | Intervalo: $($State.IntervalSec)s | Pausado: $($State.Paused)"
-  $SysBadge.Text = "Equipo: $($sysSummary.Manufacturer) $($sysSummary.Model) | OS: $($sysSummary.OS) ($($sysSummary.OSVersion)) | RAM Total: $($sysSummary.TotalRAM_GB) GB"
-}
-
-function Apply-Filter {
-  $tab = $Tabs.SelectedItem.Header
-  switch ($tab) {
-    'Sistema'      { $GridSys.ItemsSource  = (, $sysSummary | Where-Object { Passes-Filter $_ $State.FilterText }) }
-    'CPU'          { $GridCPU.ItemsSource  = ($cpu | Where-Object { Passes-Filter $_ $State.FilterText }) }
-    'RAM'          { $GridRAM.ItemsSource  = ($ramNormalized | Where-Object { Passes-Filter $_ $State.FilterText }) }
-    'Discos'       { $GridDisk.ItemsSource = ($diskNormalized | Where-Object { Passes-Filter $_ $State.FilterText }) }
-    'GPU'          { $GridGPU.ItemsSource  = ($gpuNormalized | Where-Object { Passes-Filter $_ $State.FilterText }) }
-    'BIOS / Board' { $GridFW.ItemsSource   = (, $fwSummary | Where-Object { Passes-Filter $_ $State.FilterText }) }
-  }
-}
-
-# --- Render de gráficos ---
-function Update-BarChart($chart, [object[]]$items, [string]$labelProp, [string]$valueProp, [int]$maxHint) {
-  $chart.Series.Clear()
-  $series = New-Object System.Windows.Forms.DataVisualization.Charting.Series "Data"
-  $series.ChartType = [System.Windows.Forms.DataVisualization.Charting.SeriesChartType]::Bar
-  $series.Color = [System.Drawing.Color]::FromArgb(76,175,80) # verde
-  $series.BackSecondaryColor = [System.Drawing.Color]::FromArgb(33,150,243) # azul
-  $series.BorderWidth = 1
-
-  # Eje Y escala
-  $area = $chart.ChartAreas["Main"]
-  $vals = @()
-  foreach ($it in $items) {
-    $v = $it.$valueProp
-    if ($v -ne $null) { $vals += [double]$v }
-  }
-  $maxVal = if ($vals.Count -gt 0) { [double]([Math]::Max($vals)) } else { 0 }
-  if ($maxHint -gt 0) { $maxVal = [Math]::Max($maxVal, $maxHint) }
-  if ($maxVal -le 0) { $maxVal = 1 }
-  $area.AxisY.Minimum = 0
-  $area.AxisY.Maximum = [Math]::Ceiling($maxVal * 1.1)
-
-  # Datos
-  $i = 0
-  foreach ($it in $items) {
-    $label = [string]$it.$labelProp
-    $value = $it.$valueProp
-    if (($value -ne $null) -and ($label)) {
-      $p = $series.Points.Add([double]$value)
-      $series.Points[$i].AxisLabel = if ($label.Length -gt 20) { $label.Substring(0,20) + "…" } else { $label }
-      $series.Points[$i].Label = [string]$value
-      $i++
+    # Mapear relaciones: DiskDrive -> DiskPartition -> LogicalDisk
+    $diskMap = @()
+    foreach ($d in $drives) {
+        $dIndex = $d.Index
+        $dParts = $parts | Where-Object { $_.DiskIndex -eq $dIndex }
+        $lv = @()
+        foreach ($p in $dParts) {
+            $links = @(Get-CimSafe -Class Win32_LogicalDiskToPartition) | Where-Object { $_.Antecedent -match "DiskPartition.*DeviceID=`"$([regex]::Escape($p.DeviceID))`"" }
+            foreach ($ln in $links) {
+                $id = ($ln.Dependent -replace '.*DeviceID="([^"]+)".*','$1')
+                $ld = $vols | Where-Object { $_.DeviceID -eq $id }
+                if ($ld) { $lv += $ld }
+            }
+        }
+        $diskMap += [PSCustomObject]@{
+            Model        = $d.Model
+            SerialNumber = $d.SerialNumber
+            SizeGB       = [math]::Round(($d.Size / 1GB), 2)
+            Interface    = $d.InterfaceType
+            MediaType    = $d.MediaType
+            Partitions   = ($dParts | Select-Object DeviceID, Type, BootPartition, Size)
+            Volumes      = ($lv | Select-Object DeviceID, VolumeName, FileSystem, Size, FreeSpace)
+        }
     }
-  }
-  $chart.Series.Add($series)
+    Write-Log "Discos fisicos: $($diskMap.Count)"
+    return $diskMap
 }
 
-function Render-Charts {
-  # CPU: threads por CPU
-  Update-BarChart -chart $cpuChart -items $cpu -labelProp 'Name' -valueProp 'NumberOfLogicalProcessors' -maxHint 0
-  # RAM: capacidad por módulo
-  Update-BarChart -chart $ramChart -items $ramNormalized -labelProp 'BankLabel' -valueProp 'Capacity_GB' -maxHint 0
-  # Discos: tamaño por disco
-  Update-BarChart -chart $diskChart -items $diskNormalized -labelProp 'Model' -valueProp 'Size_GB' -maxHint 0
-  # GPU: VRAM por adaptador
-  Update-BarChart -chart $gpuChart -items $gpuNormalized -labelProp 'Name' -valueProp 'VRAM_GB' -maxHint 0
-}
-
-# --- Exportación ---
-function Export-All {
-  try {
-    # CPU
-    $cpu        | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "cpu.csv")
-    $cpu        | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $State.SnapshotDir "cpu.json") -Encoding UTF8
-    # RAM
-    $ramNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "ram.csv")
-    $ramNormalized | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $State.SnapshotDir "ram.json") -Encoding UTF8
-    # Discos
-    $diskNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "disks.csv")
-    $diskNormalized | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $State.SnapshotDir "disks.json") -Encoding UTF8
-    # GPU
-    $gpuNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "gpu.csv")
-    $gpuNormalized | ConvertTo-Json -Depth 4 | Out-File -Path (Join-Path $State.SnapshotDir "gpu.json") -Encoding UTF8
-    # BIOS/Board
-    (, $fwSummary) | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "bios_board.csv")
-    $fwSummary | ConvertTo-Json -Depth 4 | Out-File -Path (Join-Path $State.SnapshotDir "bios_board.json") -Encoding UTF8
-
-    # Resumen consolidado
-    $summary = [pscustomobject]@{
-      Tag                 = $State.Tag
-      Timestamp           = $TimeStamp
-      System              = $sysSummary
-      CPU                 = $cpu
-      RAM_Modules         = $ramNormalized
-      Disks               = $diskNormalized
-      GPU                 = $gpuNormalized
-      Firmware_And_Board  = $fwSummary
-    }
-    $summary | ConvertTo-Json -Depth 6 | Out-File -FilePath $SummaryJson -Encoding UTF8
-
-    # CSV plano
-    $flat = [pscustomobject]@{
-      Tag              = $State.Tag
-      Timestamp        = $TimeStamp
-      Manufacturer     = $sysSummary.Manufacturer
-      Model            = $sysSummary.Model
-      TotalRAM_GB      = $sysSummary.TotalRAM_GB
-      CPU_Name         = ($cpu | Select-Object -First 1).Name
-      CPU_Cores        = ($cpu | Select-Object -First 1).NumberOfCores
-      CPU_Threads      = ($cpu | Select-Object -First 1).NumberOfLogicalProcessors
-      Disk_Count       = $diskNormalized.Count
-      Disk_Total_GB    = [Math]::Round(($diskNormalized | Measure-Object -Property Size_GB -Sum).Sum,2)
-      GPU_Primary      = ($gpuNormalized | Select-Object -First 1).Name
-      BIOS_Version     = $fwSummary.BIOS_Version
-    }
-    $flat | Export-Csv -NoTypeInformation -Encoding UTF8 -Path $SummaryCsv
-
-    if ($State.IncludeCSV) {
-      $cpu | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "cpu_per_device.csv")
-      $ramNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "ram_per_device.csv")
-      $diskNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "disks_per_device.csv")
-      $gpuNormalized | Export-Csv -NoTypeInformation -Encoding UTF8 -Path (Join-Path $State.SnapshotDir "gpu_per_device.csv")
+function Collect-GPU {
+    try {
+        $gpuRaw = Get-CimSafe -Class Win32_VideoController
+    } catch {
+        Write-Log "Fallo al obtener Win32_VideoController -> $($_.Exception.Message)" "ERROR"
+        $gpuRaw = @()
     }
 
-    [System.Windows.MessageBox]::Show("Exportación completada en:`n$($State.SnapshotDir)","Exportación", 'OK','Information') | Out-Null
-  } catch {
-    [System.Windows.MessageBox]::Show("Error exportando:`n$($_.Exception.Message)","Error", 'OK','Error') | Out-Null
-  }
+    $list = @()
+    foreach ($g in @($gpuRaw)) {
+        if (-not $g) { continue }
+        $vramMb = $null
+        try {
+            if ($g.AdapterRAM -and [double]$g.AdapterRAM -gt 0) {
+                $vramMb = [math]::Round(($g.AdapterRAM / 1MB), 0)
+            }
+        } catch { }
+
+        $list += [PSCustomObject]@{
+            Name                 = $g.Name
+            AdapterCompatibility = $g.AdapterCompatibility
+            DriverVersion        = $g.DriverVersion
+            DriverDate           = $g.DriverDate
+            VideoProcessor       = $g.VideoProcessor
+            VRAM_MB              = $vramMb
+            PNPDeviceID          = $g.PNPDeviceID
+        }
+    }
+
+    Write-Log "GPUs: $($list.Count)"
+    return $list
+
+  return $list
 }
 
-# --- Eventos UI ---
-$FilterBox.Add_TextChanged({
-  $State.FilterText = $FilterBox.Text
-  Apply-Filter
+function Collect-Firmware {
+    $bios = @()
+    $cs   = @()
+    try { $bios = Get-CimSafe -Class Win32_BIOS } catch { $bios = @() }
+    try { $cs   = Get-CimSafe -Class Win32_ComputerSystem } catch { $cs = @() }
+
+    $biosObj = $null
+    if ($bios -and $bios.Count -gt 0) {
+        $b = $bios[0]
+        $dateReadable = $b.ReleaseDate
+        try {
+            if ($b.ReleaseDate) { $dateReadable = [Management.ManagementDateTimeConverter]::ToDateTime($b.ReleaseDate) }
+        } catch { }
+
+        $biosObj = [PSCustomObject]@{
+            Manufacturer        = $b.Manufacturer
+            SMBIOSBIOSVersion   = $b.SMBIOSBIOSVersion
+            BIOSVersion         = ($b.BIOSVersion -join " ")
+            ReleaseDate         = $dateReadable
+            SerialNumber        = $b.SerialNumber
+            EmbeddedController  = $b.EmbeddedControllerMajorVersion
+            SecureBoot          = $null
+        }
+    }
+
+    try {
+        $sb = Get-CimInstance -Namespace root\Microsoft\Windows\HardwareManagement -ClassName MS_SecureBoot -ErrorAction Stop
+        if ($sb -and $biosObj) { $biosObj.SecureBoot = $sb.SecureBootEnabled }
+    } catch {
+        Write-Log "Secure Boot no disponible o sin permiso." "WARN"
+    }
+
+    # Deteccion UEFI aproximada (compatible 5.1)
+    $uefi = $null
+    try {
+        if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Control\EFI") {
+            $uefi = "UEFI"
+        } else {
+            $uefi = "Legacy/BIOS"
+        }
+    } catch { }
+
+    $hostObj = $null
+    if ($cs -and $cs.Count -gt 0) {
+        $c = $cs[0]
+        $hostObj = [PSCustomObject]@{
+            Manufacturer = $c.Manufacturer
+            Model        = $c.Model
+            SystemType   = $c.SystemType
+            UEFI         = $uefi
+        }
+    }
+
+    Write-Log "Firmware/BIOS recolectado"
+    return @{
+        BIOS = $biosObj
+        Host = $hostObj
+    }
+}
+
+
+
+function Collect-AllHardware {
+    Write-Log "Iniciando inventario..."
+
+    # Secciones con tolerancia a fallos
+    $cpuData = @()
+    try { $cpuData = Collect-CPU } catch { Write-Log "CPU fallo -> $($_.Exception.Message)" "ERROR"; $cpuData = @() }
+
+    $ramData = $null
+    try { $ramData = Collect-RAM } catch { Write-Log "RAM fallo -> $($_.Exception.Message)" "ERROR"; $ramData = @{ TotalGB = $null; Modules = @() } }
+
+    $diskData = @()
+    try { $diskData = Collect-Disks } catch { Write-Log "Discos fallo -> $($_.Exception.Message)" "ERROR"; $diskData = @() }
+
+    $gpuData = @()
+    try { $gpuData = Collect-GPU } catch { Write-Log "GPU fallo -> $($_.Exception.Message)" "ERROR"; $gpuData = @() }
+
+    $firmData = $null
+    try { $firmData = Collect-Firmware } catch { Write-Log "Firmware fallo -> $($_.Exception.Message)" "ERROR"; $firmData = @{ BIOS = $null; Host = $null } }
+
+    $osData = @()
+    try {
+        $osData = Get-CimSafe -Class Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber, OSArchitecture
+        # Asegurar array para CSV
+        $osData = @($osData)
+    } catch {
+        Write-Log "SO fallo -> $($_.Exception.Message)" "ERROR"
+        $osData = @()
+    }
+
+    $data = [PSCustomObject]@{
+        Timestamp    = (Get-Date).ToString("s")
+        ComputerName = $env:COMPUTERNAME
+        CPU          = $cpuData
+        RAM          = $ramData
+        Disks        = $diskData
+        GPU          = $gpuData
+        Firmware     = $firmData
+        OS           = $osData
+    }
+
+    Write-Log "Inventario finalizado"
+    return $data
+}
+
+
+# =========================
+# Exportacion
+# =========================
+function Export-HWJson {
+    param([Parameter(Mandatory)][object]$Data, [Parameter(Mandatory)][string]$Path)
+    try {
+        $json = $Data | ConvertTo-Json -Depth 6
+        Set-Content -Path $Path -Value $json -Encoding UTF8
+        Write-Log "JSON exportado -> $Path"
+        return $true
+    } catch {
+        Write-Log "Error exportando JSON -> $($_.Exception.Message)" "ERROR"
+        return $false
+    }
+}
+
+function Export-HWJson {
+    param([Parameter(Mandatory)][object]$Data, [Parameter(Mandatory)][string]$Path)
+    try {
+        if (-not $Data) { throw "Objeto Data nulo." }
+        $json = $Data | ConvertTo-Json -Depth 8
+        Set-Content -Path $Path -Value $json -Encoding UTF8
+        Write-Log "JSON exportado -> $Path"
+        return $true
+    } catch {
+        Write-Log "Error exportando JSON -> $($_.Exception.Message)" "ERROR"
+        return $false
+    }
+}
+
+function Export-HWCsv {
+    param([Parameter(Mandatory)][object]$Data, [Parameter(Mandatory)][string]$Folder)
+
+    try {
+        if (-not $Data) { throw "Objeto Data nulo." }
+        if (-not (Test-Path $Folder)) { throw "Carpeta destino no existe: $Folder" }
+
+        $base = Join-Path $Folder ("HW_{0}" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+        if (!(Test-Path $base)) { New-Item -ItemType Directory -Path $base | Out-Null }
+
+        # Normalizar secciones a arrays
+        $cpuArr = @($Data.CPU)
+        $ramMods = @()
+        $ramTotal = [PSCustomObject]@{ TotalGB = $null }
+        if ($Data.RAM) {
+            $ramMods = @($Data.RAM.Modules)
+            $ramTotal = [PSCustomObject]@{ TotalGB = $Data.RAM.TotalGB }
+        }
+        $diskArr = @($Data.Disks)
+        $gpuArr = @($Data.GPU)
+        $osArr = @($Data.OS)
+
+        # Exportaciones básicas
+        $cpuArr       | Export-Csv -Path (Join-Path $base "CPU.csv") -NoTypeInformation -Encoding UTF8
+        $ramMods      | Export-Csv -Path (Join-Path $base "RAM_Modulos.csv") -NoTypeInformation -Encoding UTF8
+        $ramTotal     | Export-Csv -Path (Join-Path $base "RAM_Total.csv") -NoTypeInformation -Encoding UTF8
+        $diskArr      | Export-Csv -Path (Join-Path $base "Discos.csv") -NoTypeInformation -Encoding UTF8
+        $gpuArr       | Export-Csv -Path (Join-Path $base "GPU.csv") -NoTypeInformation -Encoding UTF8
+        $osArr        | Export-Csv -Path (Join-Path $base "SO.csv") -NoTypeInformation -Encoding UTF8
+
+        # Particiones y volúmenes planos (si hay discos)
+        $partsFlat = @()
+        $volsFlat  = @()
+        foreach ($d in $diskArr) {
+            foreach ($p in @($d.Partitions)) {
+                if ($p) {
+                    $partsFlat += [PSCustomObject]@{
+                        DiskModel    = $d.Model
+                        DeviceID     = $p.DeviceID
+                        Type         = $p.Type
+                        BootPartition= $p.BootPartition
+                        Size         = $p.Size
+                    }
+                }
+            }
+            foreach ($v in @($d.Volumes)) {
+                if ($v) {
+                    $volsFlat += [PSCustomObject]@{
+                        DiskModel  = $d.Model
+                        DeviceID   = $v.DeviceID
+                        VolumeName = $v.VolumeName
+                        FileSystem = $v.FileSystem
+                        Size       = $v.Size
+                        FreeSpace  = $v.FreeSpace
+                    }
+                }
+            }
+        }
+        $partsFlat | Export-Csv -Path (Join-Path $base "Particiones.csv") -NoTypeInformation -Encoding UTF8
+        $volsFlat  | Export-Csv -Path (Join-Path $base "Volumenes.csv") -NoTypeInformation -Encoding UTF8
+
+        # Firmware si existe
+        if ($Data.Firmware) {
+            if ($Data.Firmware.BIOS) { @($Data.Firmware.BIOS) | Export-Csv -Path (Join-Path $base "BIOS.csv") -NoTypeInformation -Encoding UTF8 }
+            if ($Data.Firmware.Host) { @($Data.Firmware.Host) | Export-Csv -Path (Join-Path $base "Host.csv") -NoTypeInformation -Encoding UTF8 }
+        }
+
+        Write-Log "CSVs exportados -> $base"
+        return $true
+    } catch {
+        Write-Log "Error exportando CSV -> $($_.Exception.Message)" "ERROR"
+        return $false
+    }
+}
+
+
+# =========================
+# GUI
+# =========================
+$form = New-Object System.Windows.Forms.Form
+$form.Text = $Global:AppTitle
+$form.Size = New-Object System.Drawing.Size(920, 640)
+$form.StartPosition = "CenterScreen"
+$form.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+
+$lblTitle = New-Object System.Windows.Forms.Label
+$lblTitle.Text = "Inventario de Hardware"
+$lblTitle.ForeColor = [System.Drawing.Color]::White
+$lblTitle.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 14)
+$lblTitle.AutoSize = $true
+$lblTitle.Location = New-Object System.Drawing.Point(20,20)
+$lblTitle.TabIndex = 0
+$form.Controls.Add($lblTitle)
+
+$gbOptions = New-Object System.Windows.Forms.GroupBox
+$gbOptions.Text = "Opciones de exportacion"
+$gbOptions.ForeColor = [System.Drawing.Color]::White
+$gbOptions.BackColor = [System.Drawing.Color]::FromArgb(45,45,48)
+$gbOptions.Size = New-Object System.Drawing.Size(880, 140)
+$gbOptions.Location = New-Object System.Drawing.Point(20,60)
+$gbOptions.TabIndex = 1
+$gbOptions.Anchor = "Top,Left,Right"
+$form.Controls.Add($gbOptions)
+
+$lblFolder = New-Object System.Windows.Forms.Label
+$lblFolder.Text = "Carpeta destino:"
+$lblFolder.ForeColor = [System.Drawing.Color]::White
+$lblFolder.AutoSize = $true
+$lblFolder.Location = New-Object System.Drawing.Point(20,40)
+$lblFolder.TabIndex = 0
+$gbOptions.Controls.Add($lblFolder)
+
+$tbFolder = New-Object System.Windows.Forms.TextBox
+$tbFolder.Text = $Global:ExportRoot
+$tbFolder.Size = New-Object System.Drawing.Size(630, 24)
+$tbFolder.Location = New-Object System.Drawing.Point(130,36)
+$tbFolder.TabIndex = 1
+$tbFolder.Anchor = "Top,Left,Right"
+$gbOptions.Controls.Add($tbFolder)
+
+$btnFolder = New-Object System.Windows.Forms.Button
+$btnFolder.Text = "Examinar..."
+$btnFolder.Size = New-Object System.Drawing.Size(100, 28)
+$btnFolder.Location = New-Object System.Drawing.Point(770,34)
+$btnFolder.TabIndex = 2
+$btnFolder.Anchor = "Top,Right"
+$gbOptions.Controls.Add($btnFolder)
+
+$lblName = New-Object System.Windows.Forms.Label
+$lblName.Text = "Nombre de archivo base:"
+$lblName.ForeColor = [System.Drawing.Color]::White
+$lblName.AutoSize = $true
+$lblName.Location = New-Object System.Drawing.Point(20,80)
+$lblName.TabIndex = 3
+$gbOptions.Controls.Add($lblName)
+
+$tbName = New-Object System.Windows.Forms.TextBox
+$tbName.Text = ("Inventario_{0}" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+$tbName.Size = New-Object System.Drawing.Size(260, 24)
+$tbName.Location = New-Object System.Drawing.Point(200,76)
+$tbName.TabIndex = 4
+$gbOptions.Controls.Add($tbName)
+
+$btnCollect = New-Object System.Windows.Forms.Button
+$btnCollect.Text = "Recolectar datos"
+$btnCollect.BackColor = [System.Drawing.Color]::FromArgb(0,122,204)
+$btnCollect.ForeColor = [System.Drawing.Color]::White
+$btnCollect.Size = New-Object System.Drawing.Size(150, 36)
+$btnCollect.Location = New-Object System.Drawing.Point(480,72)
+$btnCollect.TabIndex = 5
+$btnCollect.Anchor = "Top"
+$gbOptions.Controls.Add($btnCollect)
+
+$btnExportJson = New-Object System.Windows.Forms.Button
+$btnExportJson.Text = "Exportar JSON"
+$btnExportJson.BackColor = [System.Drawing.Color]::FromArgb(16,124,16)
+$btnExportJson.ForeColor = [System.Drawing.Color]::White
+$btnExportJson.Size = New-Object System.Drawing.Size(140, 36)
+$btnExportJson.Location = New-Object System.Drawing.Point(640,72)
+$btnExportJson.TabIndex = 6
+$btnExportJson.Anchor = "Top,Right"
+$gbOptions.Controls.Add($btnExportJson)
+
+$btnExportCsv = New-Object System.Windows.Forms.Button
+$btnExportCsv.Text = "Exportar CSVs"
+$btnExportCsv.BackColor = [System.Drawing.Color]::FromArgb(217,96,0)
+$btnExportCsv.ForeColor = [System.Drawing.Color]::White
+$btnExportCsv.Size = New-Object System.Drawing.Size(140, 36)
+$btnExportCsv.Location = New-Object System.Drawing.Point(790,72)
+$btnExportCsv.TabIndex = 7
+$btnExportCsv.Anchor = "Top,Right"
+$gbOptions.Controls.Add($btnExportCsv)
+
+$gbPreview = New-Object System.Windows.Forms.GroupBox
+$gbPreview.Text = "Vista previa (resumen y logs)"
+$gbPreview.ForeColor = [System.Drawing.Color]::White
+$gbPreview.BackColor = [System.Drawing.Color]::FromArgb(45,45,48)
+$gbPreview.Size = New-Object System.Drawing.Size(880, 380)
+$gbPreview.Location = New-Object System.Drawing.Point(20,210)
+$gbPreview.TabIndex = 2
+$gbPreview.Anchor = "Top,Left,Right,Bottom"
+$form.Controls.Add($gbPreview)
+
+# LogBox dentro de la vista previa (parte superior)
+$Global:LogBox = New-Object System.Windows.Forms.TextBox
+$Global:LogBox.Multiline = $true
+$Global:LogBox.ReadOnly = $true
+$Global:LogBox.ScrollBars = "Vertical"
+$Global:LogBox.BackColor = [System.Drawing.Color]::Black
+$Global:LogBox.ForeColor = [System.Drawing.Color]::LightGreen
+$Global:LogBox.Size = New-Object System.Drawing.Size(840, 120)
+$Global:LogBox.Location = New-Object System.Drawing.Point(20,30)
+$Global:LogBox.TabIndex = 0
+$Global:LogBox.Anchor = "Top,Left,Right"
+$gbPreview.Controls.Add($Global:LogBox)
+
+# Resumen (parte inferior)
+$tbPreview = New-Object System.Windows.Forms.TextBox
+$tbPreview.Multiline = $true
+$tbPreview.ReadOnly = $true
+$tbPreview.ScrollBars = "Vertical"
+$tbPreview.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$tbPreview.ForeColor = [System.Drawing.Color]::Gainsboro
+$tbPreview.Size = New-Object System.Drawing.Size(840, 220)
+$tbPreview.Location = New-Object System.Drawing.Point(20,160)
+$tbPreview.TabIndex = 1
+$tbPreview.Anchor = "Top,Left,Right,Bottom"
+$gbPreview.Controls.Add($tbPreview)
+
+# Estado inicial de botones de exportacion (se habilitan tras recolectar)
+$btnExportJson.Enabled = $false
+$btnExportCsv.Enabled  = $false
+
+
+# =========================
+# Eventos
+# =========================
+
+# Selección de carpeta
+$btnFolder.Add_Click({
+    $fbd = New-Object System.Windows.Forms.FolderBrowserDialog
+    if (Test-Path $tbFolder.Text) { $fbd.SelectedPath = $tbFolder.Text }
+    if ($fbd.ShowDialog() -eq "OK") {
+        $tbFolder.Text = $fbd.SelectedPath
+        Write-Log "Carpeta destino seleccionada: $($tbFolder.Text)"
+    }
 })
 
-$Tabs.Add_SelectionChanged({
-  Apply-Filter
+$Global:CurrentData = $null
+
+# Recolección de hardware
+$btnCollect.Add_Click({
+    try {
+        Write-Log "Recolectando hardware..."
+        $Global:CurrentData = Collect-AllHardware
+
+        if (-not $Global:CurrentData) {
+            Write-Log "No se pudo recolectar datos de hardware." "ERROR"
+            return
+        }
+
+        # Resumen human-readable con validaciones
+        $summary = @()
+
+        if ($Global:CurrentData.CPU) {
+            $cpu = $Global:CurrentData.CPU | ForEach-Object { "$($_.Name) | $($_.Cores)C/$($_.LogicalProcessors)L @ $($_.MaxClockMHz)MHz" }
+            $summary += "CPU: " + ($cpu -join "; ")
+        }
+
+        if ($Global:CurrentData.GPU) {
+            $gpu = $Global:CurrentData.GPU | ForEach-Object { "$($_.Name) (VRAM: $($_.VRAM_MB)MB)" }
+            $summary += "GPU: " + ($gpu -join "; ")
+        }
+
+        if ($Global:CurrentData.RAM) {
+            $ram = "Total: $($Global:CurrentData.RAM.TotalGB) GB | Modulos: $($Global:CurrentData.RAM.Modules.Count)"
+            $summary += "RAM: " + $ram
+        }
+
+        if ($Global:CurrentData.OS) {
+            $os  = $Global:CurrentData.OS | Select-Object -First 1
+            $summary += "SO: $($os.Caption) $($os.Version) ($($os.OSArchitecture)) Build $($os.BuildNumber)"
+        }
+
+        if ($Global:CurrentData.Firmware -and $Global:CurrentData.Firmware.BIOS) {
+            $firm = $Global:CurrentData.Firmware.BIOS
+            $date = try { [Management.ManagementDateTimeConverter]::ToDateTime($firm.ReleaseDate) } catch { $firm.ReleaseDate }
+            $summary += "BIOS: $($firm.Manufacturer) $($firm.SMBIOSBIOSVersion) fecha $date"
+        }
+
+        if ($Global:CurrentData.Disks) {
+            $summary += "Discos: $($Global:CurrentData.Disks.Count)"
+        }
+
+        $tbPreview.Text = ($summary -join "`r`n")
+        Write-Log "Hardware recolectado y resumido"
+
+        # Habilitar exportación
+        $btnExportJson.Enabled = $true
+        $btnExportCsv.Enabled  = $true
+
+    } catch {
+        Write-Log "Error recolectando hardware -> $($_.Exception.Message)" "ERROR"
+    }
 })
 
-$ExportAllBtn.Add_Click({
-  Export-All
+# Exportar JSON
+$btnExportJson.Add_Click({
+    try {
+        if (-not $Global:CurrentData) {
+            [System.Windows.Forms.MessageBox]::Show("Primero recolecta datos.", "Aviso", "OK", "Information") | Out-Null
+            return
+        }
+        if (-not (Test-Path $tbFolder.Text)) {
+            [System.Windows.Forms.MessageBox]::Show("La carpeta destino no existe.", "Error", "OK", "Error") | Out-Null
+            return
+        }
+        $path = Join-Path $tbFolder.Text ($tbName.Text + ".json")
+        if (Export-HWJson -Data $Global:CurrentData -Path $path) {
+            [System.Windows.Forms.MessageBox]::Show("JSON exportado en:`r`n$path", "Exito", "OK", "Information") | Out-Null
+        }
+    } catch {
+        Write-Log "Error exportando JSON -> $($_.Exception.Message)" "ERROR"
+    }
 })
 
-$OpenFolderBtn.Add_Click({
-  try {
-    Start-Process explorer.exe $State.SnapshotDir
-  } catch {}
+# Exportar CSV
+$btnExportCsv.Add_Click({
+    try {
+        if (-not $Global:CurrentData) {
+            [System.Windows.Forms.MessageBox]::Show("Primero recolecta datos.", "Aviso", "OK", "Information") | Out-Null
+            return
+        }
+        if (-not (Test-Path $tbFolder.Text)) {
+            [System.Windows.Forms.MessageBox]::Show("La carpeta destino no existe.", "Error", "OK", "Error") | Out-Null
+            return
+        }
+        $folder = $tbFolder.Text
+        if (Export-HWCsv -Data $Global:CurrentData -Folder $folder) {
+            [System.Windows.Forms.MessageBox]::Show("CSVs exportados en subcarpeta dentro:`r`n$folder", "Exito", "OK", "Information") | Out-Null
+        }
+    } catch {
+        Write-Log "Error exportando CSV -> $($_.Exception.Message)" "ERROR"
+    }
 })
 
-$PauseResumeBtn.Add_Click({
-  $State.Paused = -not $State.Paused
-  if ($State.Paused) {
-    $PauseResumeBtn.Content = 'Continuar'
-  } else {
-    $PauseResumeBtn.Content = 'Pausar'
-  }
-  $StatusText.Text = "Última actualización: $(Get-Date -Format 'HH:mm:ss') | Intervalo: $($State.IntervalSec)s | Pausado: $($State.Paused)"
-})
-
-$IntervalSlider.Add_ValueChanged({
-  $State.IntervalSec = [int]$IntervalSlider.Value
-  $IntervalValue.Text = "$($State.IntervalSec)s"
-  $timer.Interval = [TimeSpan]::FromSeconds([double]$State.IntervalSec)
-})
-
-# --- Timer de refresco continuo ---
-$timer = New-Object System.Windows.Threading.DispatcherTimer
-$timer.Interval = [TimeSpan]::FromSeconds([double]$State.IntervalSec)
-$timer.Add_Tick({
-  if (-not $State.Paused) {
-    Collect-Inventory
-    Bind-Tables
-    Apply-Filter
-    Render-Charts
-  }
-})
-$timer.Start()
-
-# --- Primera carga y mostrar ventana ---
-Collect-Inventory
-Bind-Tables
-Apply-Filter
-Render-Charts
-
-if (-not [System.Windows.Application]::Current) {
-  $app = New-Object System.Windows.Application
-  $app.Run($window) | Out-Null
-} else {
-  $null = $window.ShowDialog()
+# =========================
+# Inicializar
+# =========================
+try {
+    Write-Log "Log: $Global:LogFile"
+    $btnExportJson.Enabled = $false
+    $btnExportCsv.Enabled  = $false
+    $form.Add_Shown({ $form.Activate() })
+    [void]$form.ShowDialog()
+} catch {
+    Write-Log "Error critico de GUI -> $($_.Exception.Message)" "ERROR"
 }
