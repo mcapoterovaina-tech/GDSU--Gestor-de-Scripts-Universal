@@ -45,7 +45,7 @@ namespace GDSU
 
         // Logic
         private string rootPath;
-        private readonly Dictionary<int, (string Path, string Ext)> runningProcesses = new();
+        private readonly Dictionary<int, ScriptProcessInfo> runningProcesses = new();
 
         // === NUEVOS CAMPOS PARA EL MONITOR ===
         private GroupBox gbMonitor;
@@ -59,6 +59,15 @@ namespace GDSU
         private int totalLaunched = 0;
         private int totalCompleted = 0;
         private int totalErrors = 0;
+
+        private class ScriptProcessInfo
+        {
+            public string Path { get; set; } = "";
+            public string Ext { get; set; } = "";
+            public DateTime StartTime { get; set; }
+            public DateTime? EndTime { get; set; }
+            public int? ExitCode { get; set; }
+        }
 
         public MainForm()
         {
@@ -137,6 +146,17 @@ namespace GDSU
             // Start
             LoadTree();
             UpdateStatsUI();
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                sysTimer?.Stop();
+                sysTimer?.Dispose();
+                cpuCounter?.Dispose();
+                ramCounter?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         private void BuildHeader()
@@ -241,19 +261,22 @@ namespace GDSU
             btnRun = NewStyledButton("Ejecutar seleccionados", new Point(0, 5));
             btnRefresh = NewStyledButton("Refrescar", new Point(205, 5));
             btnSelectFolder = NewStyledButton("Seleccionar carpeta", new Point(410, 5));
-            btnClose = NewStyledButton("Cerrar", new Point(650, 5));
-            btnClose.Size = new Size(190, 30);
-            btnDocs = NewStyledButton("Documentación", new Point(650, 5));
-            btnClose = NewStyledButton("Cerrar", new Point(860, 5));
-            btnClose.Size = new Size(190, 30);
+            btnDocs = NewStyledButton("Documentación", new Point(615, 5));
+            btnDocs.Size = new Size(100, 30);
+            btnClose = NewStyledButton("Cerrar", new Point(720, 5));
 
             btnPanel.Controls.AddRange(new Control[] { btnRun, btnRefresh, btnSelectFolder, btnDocs, btnClose });
+
             btnDocs.Click += (s, e) =>
             {
+                // Asegúrate de tener una clase DocForm definida
                 var docForm = new DocForm();
                 docForm.ShowDialog();
             };
+
+            btnClose.Click += (s, e) => Close();
         }
+
 
         private void BuildStatusBar()
         {
@@ -340,23 +363,42 @@ namespace GDSU
             gbMonitor.Controls.Add(lblRAM);
             gbMonitor.Controls.Add(pbRAM);
 
-            cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-            ramCounter = new PerformanceCounter("Memory", "% Committed Bytes In Use");
+        try
+            {
+                cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+                ramCounter = new PerformanceCounter("Memory", "% Committed Bytes In Use");
+            }
+            catch (Exception ex)
+            {
+                cpuCounter = null;
+                ramCounter = null;
+                WriteLog($"Monitor deshabilitado: no se pudo inicializar PerformanceCounter -> {ex.Message}");
+            }
 
-            sysTimer = new System.Windows.Forms.Timer { Interval = 2000 };  // <- aquí
+            sysTimer = new System.Windows.Forms.Timer { Interval = 2000 };
             sysTimer.Tick += (s, e) =>
             {
                 try
                 {
-                    pbCPU.Value = Math.Min(100, (int)cpuCounter.NextValue());
-                    pbRAM.Value = Math.Min(100, (int)ramCounter.NextValue());
+                    if (cpuCounter != null)
+                    {
+                        int cpuVal = (int)cpuCounter.NextValue();
+                        pbCPU.Value = Math.Max(0, Math.Min(100, cpuVal));
+                    }
+
+                    if (ramCounter != null)
+                    {
+                        int ramVal = (int)ramCounter.NextValue();
+                        pbRAM.Value = Math.Max(0, Math.Min(100, ramVal));
+                    }
                 }
-                catch { /* ignorar errores de lectura */ }
+                catch
+                {
+                    // ignorar errores de lectura
+                }
             };
             sysTimer.Start();
         }
-
-
 
         private Label NewStatLabel(string text, Point location)
         {
@@ -526,7 +568,13 @@ namespace GDSU
                     if (child.Checked && child.Tag is string fullPath && File.Exists(fullPath))
                     {
                         string ext = Path.GetExtension(fullPath).ToLowerInvariant();
-                        string wd = Path.GetDirectoryName(fullPath)!;
+                        string? wd = Path.GetDirectoryName(fullPath);
+
+                        if (string.IsNullOrEmpty(wd))
+                        {
+                            WriteLog($"ERROR: No se pudo determinar el directorio de trabajo para {fullPath}");
+                            continue; // saltar este script
+                        }
 
                         try
                         {
@@ -543,6 +591,16 @@ namespace GDSU
                                 continue;
                             }
 
+                            // Guardar información del proceso
+                            var info = new ScriptProcessInfo
+                            {
+                                Path = fullPath,
+                                Ext = ext,
+                                StartTime = DateTime.Now
+                            };
+                            lock (runningProcesses) { runningProcesses[p.Id] = info; }
+
+                            // Configurar evento de salida
                             p.EnableRaisingEvents = true;
                             p.Exited += (s, e) =>
                             {
@@ -552,13 +610,19 @@ namespace GDSU
                                     int pid = -1;
                                     int code = -1;
 
-                                    // Capturamos datos de forma segura
                                     try { pid = proc.Id; } catch { }
                                     try { code = proc.ExitCode; } catch { }
 
-                                    lock (runningProcesses) { if (pid > 0) runningProcesses.Remove(pid); }
+                                    lock (runningProcesses)
+                                    {
+                                        if (runningProcesses.TryGetValue(pid, out var procInfo))
+                                        {
+                                            procInfo.EndTime = DateTime.Now;
+                                            procInfo.ExitCode = code;
+                                       }
+                                        if (pid > 0) runningProcesses.Remove(pid);
+                                    }
 
-                                    // NEW: actualizar contadores de completados/errores
                                     if (code != 0) totalErrors++;
                                     totalCompleted++;
 
@@ -567,6 +631,7 @@ namespace GDSU
                                         WriteLog($"FIN (PID {pid}, exit code {code})");
                                         UpdateStatsUI();
                                     });
+
                                     proc.Dispose();
                                 }
                                 catch (Exception ex)
@@ -579,13 +644,10 @@ namespace GDSU
                                 }
                             };
 
-                            lock (runningProcesses) { runningProcesses[p.Id] = (fullPath, ext); }
-
                             WriteLog($"Lanzado: {fullPath} (PID {p.Id})");
                             started++;
                             totalLaunched++;
 
-                            // NEW: actualizar estadísticas al lanzar
                             UpdateStatsUI();
                         }
                         catch (Exception ex)
@@ -603,11 +665,10 @@ namespace GDSU
             else
                 WriteLog($"Procesos lanzados en paralelo: {started}");
 
-            // NEW: actualización final
             UpdateStatsUI();
         }
 
-        private Process StartProcess(string fileName, string arguments, string workingDir)
+        private Process? StartProcess(string fileName, string arguments, string workingDir)
         {
             var psi = new ProcessStartInfo
             {
@@ -616,10 +677,38 @@ namespace GDSU
                 WorkingDirectory = workingDir,
                 UseShellExecute = false,
                 CreateNoWindow = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 WindowStyle = ProcessWindowStyle.Normal
             };
-            return Process.Start(psi)!;
+
+            var process = Process.Start(psi);
+            if (process == null)
+            {
+                WriteLog($"ERROR: No se pudo iniciar el proceso {fileName} {arguments}");
+                return null;
+            }
+
+            // Captura de salida estándar
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+            SafeInvoke(() => WriteLog($"[OUT] {e.Data}"));
+            };
+
+            // Captura de errores
+            process.ErrorDataReceived += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                    SafeInvoke(() => WriteLog($"[ERR] {e.Data}"));
+            };
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            return process;
         }
+
 
         private void SafeInvoke(Action action)
         {

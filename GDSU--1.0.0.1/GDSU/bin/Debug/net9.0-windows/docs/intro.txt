@@ -1,1 +1,91 @@
 Bienvenido a la documentación de GDSU.
+
+
+# GDSU--Gestor-de-Scripts-Universal
+Resumen de Funcionalidades: Gestor de Scripts Universal
+
+1. Introducción: Tu Centro de Mando para la Automatización
+
+El "Gestor de Scripts Universal" es una herramienta diseñada para ser el punto de control central de la automatización en entornos de TI. Su propósito principal es simplificar y centralizar tareas complejas de administración de sistemas a través de una interfaz gráfica amigable y fácil de usar. Está especialmente pensado para administradores que se inician en la automatización y buscan una forma segura, eficiente y visual de ejecutar operaciones repetitivas sin necesidad de escribir comandos complejos en la consola.
+
+A través de su interfaz, la herramienta organiza y ejecuta un potente catálogo de scripts, convirtiendo operaciones avanzadas en simples clics de ratón.
+
+2. El Corazón del Sistema: Una Interfaz Intuitiva
+
+La efectividad del gestor reside en su diseño claro y funcional, que se divide en tres componentes principales para ofrecer una experiencia de usuario fluida y controlada.
+
+* Panel de Scripts Disponibles: Es el catálogo central donde se visualizan todas las herramientas de automatización. Los scripts están organizados lógicamente en carpetas por categorías (gestión de software, seguridad, redes, etc.), lo que permite encontrar y seleccionar rápidamente la tarea adecuada para cada necesidad.
+* Registro de Actividad (Log): Esta ventana es tu "torre de control". Muestra en tiempo real cada acción que realiza la herramienta, desde el inicio de un script hasta su finalización, incluyendo mensajes de éxito, advertencias o errores. Este registro detallado es fundamental para monitorear la ejecución y diagnosticar cualquier problema al instante.
+* Botonera de Acciones: Contiene los controles esenciales para operar el sistema. Los botones clave como Ejecutar seleccionados, Refrescar y Cerrar permiten una interacción directa y eficiente. Una de sus características más potentes es la capacidad de seleccionar múltiples scripts, incluso de diferentes categorías, y ejecutarlos simultáneamente en paralelo, optimizando al máximo el tiempo de trabajo.
+
+Estos componentes trabajan en conjunto para proporcionar acceso a un completo conjunto de capacidades de automatización, que se detallan a continuación.
+
+3. Catálogo de Capacidades de Automatización
+
+El Gestor de Scripts Universal viene equipado con un robusto conjunto de herramientas listas para usar. A continuación, se detallan las funcionalidades actualmente disponibles, agrupadas por su área de función para una mejor comprensión.
+
+3.1. Gestión de Software y Sistema Operativo
+
+Estas herramientas se enfocan en mantener el software y el sistema operativo actualizados, seguros y optimizados.
+
+* Instalación Silenciosa de Aplicaciones Automatiza la instalación de software (MSI/EXE) sin requerir ninguna intervención del usuario. Su principal ventaja es el ahorro masivo de tiempo en despliegues y la garantía de que todas las instalaciones se realizan de manera consistente y estandarizada, validando la correcta inscripción del software en el registro tras la instalación.
+* Actualización Segura de Software Gestiona el proceso de actualización de aplicaciones de forma automatizada, creando primero un backup de la versión actual. Su característica más importante es la capacidad de rollback automático: si una actualización falla por cualquier motivo, el script revierte la aplicación a su estado anterior usando el backup, evitando dejar un programa roto o inestable.
+* Inventario de Software Genera una lista completa y detallada de todas las aplicaciones instaladas en el sistema. Clasifica el software según su origen (instalador MSI, Microsoft Store, aplicación portable), extrayendo metadatos directamente de los ejecutables para los portables, lo que facilita las auditorías y la gestión de licencias.
+* Inventario de Hardware Recopila información exhaustiva sobre los componentes físicos del sistema, incluyendo CPU, RAM, discos, tarjetas gráficas, detalles de Firmware/BIOS y de la placa base (fabricante, producto y serial). El informe resultante se puede exportar a formatos estructurados como CSV o JSON para su análisis o integración con sistemas de inventariado.
+* Endurecimiento (Hardening) de Windows Mejora la seguridad del sistema operativo deshabilitando protocolos obsoletos y vulnerables como SMBv1 y servicios inseguros como SNMP, Telnet y RemoteRegistry. Ofrece un modo de simulación (DryRun) para auditar los cambios antes de aplicarlos y genera un snapshot del estado previo para permitir un rollback controlado.
+* Optimización de Arranque Analiza los programas que se inician con el sistema y mide su impacto real en el rendimiento, capturando su consumo de CPU y RAM durante un período de muestreo objetivo. Esto permite identificar y deshabilitar de forma segura las aplicaciones no críticas que realmente ralentizan el arranque.
+* Limpieza de Cachés Libera espacio en disco eliminando archivos temporales y logs antiguos según políticas configurables de retención por antigüedad y tamaño mínimo. Respeta una lista de exclusión para no afectar archivos críticos, garantizando una limpieza segura y efectiva.
+
+Una vez que el sistema operativo y el software están optimizados y bajo control, el siguiente paso lógico es reforzar su seguridad y gestionar el acceso de los usuarios.
+
+3.2. Seguridad y Administración de Usuarios
+
+Este conjunto de herramientas simplifica la gestión de accesos y la configuración de las defensas del sistema.
+
+* Creación de Usuarios Locales Agiliza la creación de nuevas cuentas de usuario, asegurando el uso de contraseñas robustas y la asignación a grupos predefinidos. Utiliza cmdlets modernos, pero cuenta con un fallback al comando net user para garantizar la compatibilidad con sistemas antiguos, demostrando un diseño robusto.
+* Gestión de Políticas de Firewall Facilita la configuración del firewall de forma idempotente, lo que previene la acumulación de reglas duplicadas, un problema común que degrada el rendimiento. Antes y después de cada cambio, genera snapshots en formato JSON del estado de las reglas, creando una pista de auditoría completa e inequívoca.
+* Gestión de Procesos Identifica procesos problemáticos basándose en criterios objetivos y medibles: aquellos que no responden a la interfaz gráfica, los que muestran cero actividad de CPU durante un período de muestreo (ZeroCPU), o los que han excedido un tiempo máximo de ejecución predefinido (ExceededRuntime). Respeta una lista blanca de procesos críticos para evitar afectar al sistema.
+
+Una vez que el sistema está asegurado y el acceso controlado, la prioridad se desplaza hacia la protección de los datos y la garantía de la continuidad del negocio.
+
+3.3. Gestión de Datos y Continuidad del Negocio
+
+Estas funcionalidades son cruciales para proteger la información y asegurar una rápida recuperación ante cualquier imprevisto.
+
+* Backup Incremental Crea copias de seguridad versionadas que solo guardan los cambios. Cada versión es un snapshot autocontenido que incluye un manifiesto (manifest.json) y un catálogo de archivos (catalog.csv), proporcionando un inventario detallado y legible por máquina para auditorías y restauraciones precisas.
+* Restauración Rápida Permite restaurar archivos o perfiles desde una versión de backup específica, utilizando el catálogo para una selección precisa. Incluye una verificación de integridad mediante checksums para asegurar que los datos recuperados son una copia fiel y no están corruptos.
+* Sincronización de Carpetas Mantiene dos carpetas idénticas utilizando la potencia de Robocopy en modo Espejo (Mirror), que no solo copia archivos nuevos, sino que también elimina del destino aquellos que ya no existen en el origen. Verifica la integridad de los archivos copiados mediante checksums para garantizar una réplica perfecta.
+* Rotación de Logs Automatiza el mantenimiento de archivos de registro, comprimiendo los antiguos y purgando los más viejos según políticas de retención. Incluye un modo de simulación (DryRun) para validar las acciones antes de ejecutarlas, evitando la eliminación accidental de datos.
+
+La gestión de datos a menudo depende de los servicios de red, que también pueden ser administrados con el gestor.
+
+3.4. Servicios y Conectividad de Red
+
+Estas herramientas aseguran que los servicios esenciales del sistema y las conexiones de red funcionen correctamente.
+
+* Gestión de Servicios de Windows Ofrece un control preciso para iniciar, detener o reiniciar cualquier servicio del sistema. Después de cada acción, verifica que el servicio haya alcanzado el estado esperado (por ejemplo, "Running" o "Stopped"), garantizando que la operación se completó con éxito.
+* Mapeo de Unidades de Red Automatiza la conexión de unidades de red, permitiendo el uso de credenciales seguras (PSCredential) que pueden almacenarse en el Gestor de Credenciales de Windows para reconexiones automáticas. Garantiza la persistencia de las conexiones entre sesiones.
+
+Además de gestionar los servicios, es fundamental poder diagnosticar su rendimiento en tiempo real.
+
+3.5. Monitoreo y Diagnóstico
+
+Esta capacidad proporciona visibilidad sobre el estado del sistema para anticipar y resolver problemas de rendimiento.
+
+* Monitor de Rendimiento Captura métricas clave (CPU, RAM, disco, red) en tiempo real y genera alertas solo si los umbrales se superan durante un número configurable de muestras consecutivas. Esta lógica ayuda a filtrar picos momentáneos y a notificar únicamente sobre problemas de rendimiento sostenidos.
+
+Este conjunto de herramientas demuestra el potencial actual del proyecto, que está en continua expansión.
+
+4. Un Proyecto Vivo y de Código Abierto
+
+El "Gestor de Scripts Universal" es un proyecto de código libre, construido sobre una filosofía de transparencia y colaboración. Actualmente, cuenta con 17 herramientas funcionales y validadas, y el objetivo es expandir su catálogo con 83 herramientas adicionales que ya están en desarrollo, para un total de 100. Al ser de código abierto, cualquier persona puede revisar el código fuente, adaptarlo a sus necesidades específicas y contribuir a su mejora, asegurando que la herramienta evolucione junto a las necesidades de la comunidad.
+
+5. Conclusión: Simplifica tu Administración
+
+El "Gestor de Scripts Universal" es un aliado estratégico para cualquier administrador de sistemas, especialmente para aquellos que dan sus primeros pasos en la automatización. Sus beneficios clave se pueden resumir en tres puntos fundamentales:
+
+* Centralización: Reúne docenas de herramientas dispersas en una única interfaz cohesiva, eliminando la necesidad de buscar y recordar comandos complejos.
+* Reducción de errores: Al automatizar tareas con lógica robusta, validaciones y auditorías, se minimiza el riesgo de errores humanos, garantizando operaciones seguras y consistentes.
+* Ahorro de tiempo: Libera a los administradores de tareas repetitivas y manuales, permitiéndoles enfocarse en proyectos de mayor valor estratégico.
+
+En definitiva, esta herramienta no solo simplifica el trabajo diario, sino que también potencia la eficacia y la confianza del administrador para gestionar entornos de TI de manera profesional y segura.

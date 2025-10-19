@@ -1,5 +1,4 @@
-Scripts/
-│
+├──net9.0-windows
 ├── 01_Instalación_y_Actualización
 │   ├── Instalación silenciosa de apps.ps1
 │   ├── Actualización de software.ps1
