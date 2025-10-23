@@ -6,40 +6,48 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using GDSU.Models;
+using GDSU.Services;
 
 namespace GDSU.Core
 {
     /// <summary>
-    /// Orquesta el arranque de procesos (scripts), captura stdout/stderr y emite eventos.
-    /// Responsabilidad única: gestión y observación de procesos en ejecución.
+    /// Orquesta el arranque de procesos (scripts) delegando el inicio y la captura de I/O a IProcessService.
+    /// Responsabilidad única: coordinar ejecuciones, mantener metadatos mínimos por proceso y reenviar eventos.
     /// </summary>
     public class ScriptRunner : IDisposable
     {
+        private readonly IProcessService _processService;
         private readonly ConcurrentDictionary<int, ScriptProcessInfo> _running = new ConcurrentDictionary<int, ScriptProcessInfo>();
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
         private bool _disposed;
 
-        /// <summary>
-        /// Evento: una línea de salida estándar o de error del proceso.
-        /// </summary>
         public event Action<int, string, bool>? OnOutput; // pid, text, isError
+        public event Action<int, string>? OnStarted; // pid, path
+        public event Action<int, int?>? OnExited; // pid, exitCode
 
-        /// <summary>
-        /// Evento: proceso arrancado (pid, path).
-        /// </summary>
-        public event Action<int, string>? OnStarted;
+        public ScriptRunner(IProcessService processService)
+        {
+            _processService = processService ?? throw new ArgumentNullException(nameof(processService));
+            _processService.OnOutput += ProcessService_OnOutput;
+            _processService.OnExited += ProcessService_OnExited;
+        }
 
-        /// <summary>
-        /// Evento: proceso finalizado (pid, exitCode).
-        /// </summary>
-        public event Action<int, int?>? OnExited;
+        private void ProcessService_OnOutput(int pid, string line, bool isError)
+        {
+            try { OnOutput?.Invoke(pid, line, isError); } catch { }
+        }
 
-        /// <summary>
-        /// Inicia múltiples scripts en paralelo. Devuelve cuando todos los inicios han sido solicitados.
-        /// </summary>
-        /// <param name="scriptFiles">Rutas completas a scripts</param>
-        /// <param name="getStartInfo">Opcional: función para construir ProcessStartInfo por archivo.
-        /// Si es null, se usa un StartInfo por extensión (.bat → cmd /c, .ps1 → powershell -File)</param>
+        private void ProcessService_OnExited(int pid, int? code)
+        {
+            if (pid > 0 && _running.TryRemove(pid, out var info))
+            {
+                info.EndTime = DateTime.UtcNow;
+                info.ExitCode = code;
+            }
+
+            try { OnExited?.Invoke(pid, code); } catch { }
+        }
+
         public Task StartManyAsync(IEnumerable<string> scriptFiles, Func<string, ProcessStartInfo?>? getStartInfo = null)
         {
             if (scriptFiles == null) throw new ArgumentNullException(nameof(scriptFiles));
@@ -57,126 +65,67 @@ namespace GDSU.Core
                 var startInfo = getStartInfo?.Invoke(path) ?? DefaultStartInfoFor(path);
                 if (startInfo == null) continue;
 
+                Process? proc = null;
                 try
                 {
-                    var proc = Process.Start(startInfo);
+                    proc = _processService.Start(startInfo);
                     if (proc == null) continue;
 
-                    // Prepare process info and register
+                    var pid = TryGetPid(proc) ?? -1;
+
                     var info = new ScriptProcessInfo
                     {
                         Path = path,
                         Ext = Path.GetExtension(path),
-                        StartTime = DateTime.Now,
-                        Pid = TryGetPid(proc)
+                        StartTime = DateTime.UtcNow,
+                        Pid = pid
                     };
-                    if (info.Pid.HasValue)
-                        _running[info.Pid.Value] = info;
 
-                    // Begin capture output
-                    try
-                    {
-                        proc.EnableRaisingEvents = true;
+                    if (pid > 0) _running[pid] = info;
 
-                        proc.OutputDataReceived += (s, e) =>
-                        {
-                            if (e?.Data != null)
-                                OnOutput?.Invoke(TryGetPidSafe(proc), e.Data, false);
-                        };
-                        proc.ErrorDataReceived += (s, e) =>
-                        {
-                            if (e?.Data != null)
-                                OnOutput?.Invoke(TryGetPidSafe(proc), e.Data, true);
-                        };
-
-                        try { proc.BeginOutputReadLine(); } catch { /* ignore */ }
-                        try { proc.BeginErrorReadLine(); } catch { /* ignore */ }
-
-                        proc.Exited += (s, e) =>
-                        {
-                            var exitedProc = s as Process;
-                            var pid = TryGetPidSafe(exitedProc);
-                            int? code = null;
-                            try { if (exitedProc != null && !exitedProc.HasExited) exitedProc.WaitForExit(100); } catch { }
-                            try { if (exitedProc != null && exitedProc.HasExited) code = exitedProc.ExitCode; } catch { }
-                            // update info
-                            if (pid > 0 && _running.TryRemove(pid, out var pi))
-                            {
-                                pi.EndTime = DateTime.Now;
-                                pi.ExitCode = code;
-                            }
-                            OnExited?.Invoke(pid, code);
-                            try { exitedProc?.Dispose(); } catch { /* ignore */ }
-                        };
-                    }
-                    catch
-                    {
-                        // If hooking fails, still notify started and continue
-                    }
-
-                    OnStarted?.Invoke(info.Pid ?? -1, path);
+                    try { OnStarted?.Invoke(pid, path); } catch { }
                 }
-                catch (Exception)
+                catch
                 {
-                    // Swallow to keep runner robust; external caller may handle logging via events
+                    try { proc?.Dispose(); } catch { }
                 }
             }
         }
 
-        /// <summary>
-        /// Intenta cancelar todos los procesos iniciados por este runner enviando Kill.
-        /// No garantiza que procesos externos no hayan sido creados por los scripts.
-        /// </summary>
-        public void CancelAll()
+        public void CancelAll(bool kill = true)
         {
-            foreach (var kv in _running)
-            {
-                try
-                {
-                    var pid = kv.Key;
-                    // Try to find process and kill
-                    try
-                    {
-                        var p = Process.GetProcessById(pid);
-                        if (!p.HasExited)
-                        {
-                            try { p.Kill(); } catch { /* ignore */ }
-                        }
-                        try { p.Dispose(); } catch { }
-                    }
-                    catch { /* process may have exited or not accessible */ }
-                }
-                catch { /* ignore */ }
-            }
-            _running.Clear();
             _cts.Cancel();
+
+            if (kill)
+            {
+                foreach (var kv in _running)
+                {
+                    try
+                    {
+                        var pid = kv.Key;
+                        try
+                        {
+                            var p = Process.GetProcessById(pid);
+                            if (!p.HasExited)
+                            {
+                                try { p.Kill(); } catch { }
+                            }
+                            try { p.Dispose(); } catch { }
+                        }
+                        catch { /* may have exited or not accessible */ }
+                    }
+                    catch { }
+                }
+            }
+
+            _running.Clear();
         }
 
-        /// <summary>
-        /// Attempts to get a current snapshot of running processes tracked by this runner.
-        /// </summary>
-        public IReadOnlyCollection<ScriptProcessInfo> GetRunningProcessesSnapshot()
-        {
-            return _running.Values;
-        }
-
-        private static int TryGetPidSafe(Process? p)
-        {
-            try { return TryGetPid(p) ?? -1; }
-            catch { return -1; }
-        }
+        public IReadOnlyCollection<ScriptProcessInfo> GetRunningProcessesSnapshot() => _running.Values;
 
         private static int? TryGetPid(Process? p)
         {
-            try
-            {
-                if (p == null) return null;
-                return p.Id;
-            }
-            catch
-            {
-                return null;
-            }
+            try { return p?.Id; } catch { return null; }
         }
 
         private static ProcessStartInfo? DefaultStartInfoFor(string path)
@@ -215,16 +164,25 @@ namespace GDSU.Core
             }
         }
 
-        /// <summary>
-        /// Dispose pattern to free resources.
-        /// </summary>
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
             try { _cts.Cancel(); } catch { }
-            try { CancelAll(); } catch { }
+            try { CancelAll(kill: false); } catch { }
+            try { _processService.OnOutput -= ProcessService_OnOutput; _processService.OnExited -= ProcessService_OnExited; } catch { }
             try { _cts.Dispose(); } catch { }
+            _running.Clear();
         }
+    }
+
+    public class ScriptProcessInfo
+    {
+        public int Pid { get; set; } = -1;
+        public string Path { get; set; } = string.Empty;
+        public string? Ext { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public int? ExitCode { get; set; }
     }
 }

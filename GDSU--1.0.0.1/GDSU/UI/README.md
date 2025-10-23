@@ -548,3 +548,42 @@ ui.BtnClose.Click += (_, __) => Close();
 - **Status:** ¿`SslTime` se actualiza con Timer externo?
 - **Árbol:** ¿Se aplicó `ApplyFolderNodeStyle` en carpetas y `ToolTipText` en hojas?
 
+
+
+
+
+
+
+
+
+
+
+
+GDSU/
+├─ Program.cs
+├─ UI/
+│  ├─ MainForm.cs              // Composición de alto nivel: arma la UI y conecta controladores
+│  ├─ UI.cs                    // Construcción de la interfaz (header, paneles, status bar, etc.)
+│  ├─ UIX.cs                   // Interacción: eventos, inputs, navegación
+│  └─ Controls/
+│     ├─ LogView.cs            // Control encapsulado para el log
+│     ├─ TaskManagerView.cs    // Control encapsulado para gestión de tareas
+│     └─ ScriptTreeView.cs     // Control encapsulado para el árbol de scripts
+├─ Core/
+│  ├─ ScriptRunner.cs          // Orquesta la ejecución y seguimiento de procesos
+│  ├─ ScriptTreeLoader.cs      // Carga carpetas y scripts desde el sistema de archivos
+│  ├─ StatsService.cs          // Lleva los contadores (lanzados, completados, errores)
+│  ├─ MonitorService.cs        // Abstracción del timer de CPU/RAM
+│  └─ AppController.cs         // Coordina Core y UI, expone acciones de la app
+├─ Models/
+│  ├─ ScriptProcessInfo.cs     // Modelo con metadatos de ejecución
+│  ├─ ScriptNode.cs            // Modelo para nodos del árbol
+│  └─ StatsSnapshot.cs         // Snapshot inmutable para refrescar la UI
+├─ Services/
+│  ├─ ProcessService.cs        // Arranque de procesos y captura de IO
+│  ├─ PerformanceService.cs    // Encapsula PerformanceCounter
+│  └─ DialogService.cs         // Selección de carpetas, docs, diálogos
+├─ Utils/
+│  ├─ Logging.cs               // Interfaz de logging + adaptador a UI
+│  ├─ SafeIO.cs                // Enumeración segura de archivos/carpetas
+│  └─ UIThread.cs              // Helper para SafeInvoke
